@@ -30,22 +30,16 @@ const CodesPromoList = () => {
       const response = await getCodesPromo(page);
       console.log("Réponse API codes promo:", response.data);
 
-      // Structure de l'API: { success: true, data: { data: [...], current_page: 1, ... } }
       if (response.data?.success && response.data?.data) {
-        // Vérifier si response.data.data a une propriété 'data' (pagination Laravel)
         if (response.data.data.data && Array.isArray(response.data.data.data)) {
-          // C'est une réponse paginée
           setCodesPromo(response.data.data.data);
-          // Sauvegarder les informations de pagination
           const { data, ...paginationInfo } = response.data.data;
           setPagination(paginationInfo);
         } 
-        // Si response.data.data est directement un tableau
         else if (Array.isArray(response.data.data)) {
           setCodesPromo(response.data.data);
           setPagination(null);
         }
-        // Si response.data.data n'est pas ce qu'on attend
         else {
           console.error("Structure de données inattendue:", response.data.data);
           setCodesPromo([]);
@@ -73,7 +67,7 @@ const CodesPromoList = () => {
     try {
       await deleteCodePromo(id);
       toast.success("Code promo supprimé avec succès");
-      fetchCodesPromo(currentPage); // Recharger la liste avec la page courante
+      fetchCodesPromo(currentPage);
     } catch (err) {
       toast.error("Erreur lors de la suppression");
     }
@@ -96,7 +90,7 @@ const CodesPromoList = () => {
   if (error) return <ErrorAlert message={error} />;
 
   return (
-    <div>
+    <div className="px-4 sm:px-6 lg:px-8">
       <div className="sm:flex sm:items-center sm:justify-between">
         <div>
           <h1 className="text-2xl font-semibold text-gray-900">Codes Promo</h1>
@@ -107,7 +101,7 @@ const CodesPromoList = () => {
         <div className="mt-4 sm:mt-0">
           <Link
             to="/codes-promo/nouveau"
-            className="inline-flex items-center px-4 py-2 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-primary-600 hover:bg-primary-700"
+            className="inline-flex items-center justify-center w-full sm:w-auto px-4 py-2 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-primary-600 hover:bg-primary-700"
           >
             <PlusIcon className="h-4 w-4 mr-2" />
             Nouveau code promo
@@ -115,88 +109,88 @@ const CodesPromoList = () => {
         </div>
       </div>
 
-      <div className="mt-8 grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
+      <div className="mt-8 grid grid-cols-1 gap-6 md:grid-cols-2 xl:grid-cols-3">
         {codesPromo.length > 0 ? (
           codesPromo.map((code) => (
             <div
               key={code.id}
-              className="bg-white overflow-hidden shadow rounded-lg border border-gray-200 hover:shadow-md transition-shadow"
+              className="bg-white overflow-hidden shadow rounded-lg border border-gray-200 hover:shadow-md transition-shadow w-full"
             >
               <div className="px-4 py-5 sm:p-6">
                 {/* En-tête */}
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center">
+                <div className="flex items-start justify-between">
+                  <div className="flex items-center min-w-0 flex-1">
                     <div className="flex-shrink-0">
                       <TagIcon className="h-8 w-8 text-primary-600" />
                     </div>
-                    <div className="ml-4">
-                      <h3 className="text-lg font-medium text-gray-900">
+                    <div className="ml-3 min-w-0 flex-1">
+                      <h3 className="text-lg font-medium text-gray-900 truncate">
                         {code.code}
                       </h3>
-                      <p className="text-sm text-gray-500 truncate max-w-xs">
+                      <p className="text-sm text-gray-500 truncate">
                         {code.description || "Aucune description"}
                       </p>
                     </div>
                   </div>
-                  <span className={getStatusBadge(code.status)}>
+                  <span className={`${getStatusBadge(code.status)} ml-2 flex-shrink-0`}>
                     {code.status === "actif" ? "Actif" : 
                      code.status === "inactif" ? "Inactif" : "Expiré"}
                   </span>
                 </div>
 
                 {/* Détails */}
-                <div className="mt-4 space-y-2">
-                  <div className="flex justify-between text-sm">
-                    <span className="text-gray-500">Réduction:</span>
-                    <span className="font-medium text-primary-600">
+                <div className="mt-4 grid grid-cols-2 gap-4">
+                  <div>
+                    <p className="text-xs text-gray-500">Réduction</p>
+                    <p className="text-sm font-medium text-primary-600">
                       {code.type === "percentage"
                         ? `${code.valeur}%`
                         : formatCurrency(code.valeur)}
-                    </span>
+                    </p>
+                  </div>
+
+                  <div>
+                    <p className="text-xs text-gray-500">Livreurs</p>
+                    <p className="text-sm font-medium">
+                      {code.livreurs?.length || 0}
+                    </p>
                   </div>
 
                   {code.min_commande > 0 && (
-                    <div className="flex justify-between text-sm">
-                      <span className="text-gray-500">Commande min:</span>
-                      <span className="font-medium">
+                    <div>
+                      <p className="text-xs text-gray-500">Commande min</p>
+                      <p className="text-sm font-medium truncate">
                         {formatCurrency(code.min_commande)}
-                      </span>
+                      </p>
                     </div>
                   )}
 
-                  <div className="flex justify-between text-sm">
-                    <span className="text-gray-500">Utilisations:</span>
-                    <span className="font-medium">
+                  <div>
+                    <p className="text-xs text-gray-500">Utilisations</p>
+                    <p className="text-sm font-medium">
                       {code.utilisations_actuelles || 0}
                       {code.max_utilisations && ` / ${code.max_utilisations}`}
-                    </span>
-                  </div>
-
-                  <div className="flex justify-between text-sm">
-                    <span className="text-gray-500">Livreurs:</span>
-                    <span className="font-medium">
-                      {code.livreurs?.length || 0}
-                    </span>
+                    </p>
                   </div>
 
                   {code.date_fin && (
-                    <div className="flex justify-between text-sm">
-                      <span className="text-gray-500">Valable jusqu'au:</span>
-                      <span className="font-medium">
+                    <div className="col-span-2">
+                      <p className="text-xs text-gray-500">Valable jusqu'au</p>
+                      <p className="text-sm font-medium truncate">
                         {formatDate(code.date_fin)}
-                      </span>
+                      </p>
                     </div>
                   )}
                 </div>
 
-                {/* Barre de progression des utilisations */}
+                {/* Barre de progression */}
                 {code.max_utilisations && (
                   <div className="mt-4">
                     <div className="w-full bg-gray-200 rounded-full h-2">
                       <div
-                        className="bg-primary-600 rounded-full h-2"
+                        className="bg-primary-600 rounded-full h-2 transition-all duration-300"
                         style={{
-                          width: `${((code.utilisations_actuelles || 0) / code.max_utilisations) * 100}%`,
+                          width: `${Math.min(((code.utilisations_actuelles || 0) / code.max_utilisations) * 100, 100)}%`,
                         }}
                       />
                     </div>
@@ -204,24 +198,24 @@ const CodesPromoList = () => {
                 )}
 
                 {/* Actions */}
-                <div className="mt-5 flex justify-end space-x-3">
+                <div className="mt-5 grid grid-cols-3 gap-2">
                   <Link
                     to={`/codes-promo/${code.id}`}
-                    className="inline-flex items-center px-3 py-1 border border-gray-300 shadow-sm text-sm leading-4 font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50"
+                    className="inline-flex items-center justify-center px-2 py-2 border border-gray-300 shadow-sm text-xs font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50"
                   >
                     <EyeIcon className="h-4 w-4 mr-1" />
                     Voir
                   </Link>
                   <Link
                     to={`/codes-promo/${code.id}/edit`}
-                    className="inline-flex items-center px-3 py-1 border border-gray-300 shadow-sm text-sm leading-4 font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50"
+                    className="inline-flex items-center justify-center px-2 py-2 border border-gray-300 shadow-sm text-xs font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50"
                   >
                     <PencilIcon className="h-4 w-4 mr-1" />
                     Modifier
                   </Link>
                   <button
                     onClick={() => handleDelete(code.id, code.code)}
-                    className="inline-flex items-center px-3 py-1 border border-transparent text-sm leading-4 font-medium rounded-md text-white bg-red-600 hover:bg-red-700"
+                    className="inline-flex items-center justify-center px-2 py-2 border border-transparent text-xs font-medium rounded-md text-white bg-red-600 hover:bg-red-700"
                   >
                     <TrashIcon className="h-4 w-4 mr-1" />
                     Supprimer
@@ -242,7 +236,7 @@ const CodesPromoList = () => {
             <div className="mt-6">
               <Link
                 to="/codes-promo/nouveau"
-                className="inline-flex items-center px-4 py-2 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-primary-600 hover:bg-primary-700"
+                className="inline-flex items-center justify-center px-4 py-2 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-primary-600 hover:bg-primary-700 w-full sm:w-auto"
               >
                 <PlusIcon className="h-4 w-4 mr-2" />
                 Nouveau code promo
@@ -266,7 +260,7 @@ const CodesPromoList = () => {
             <button
               onClick={() => handlePageChange(currentPage + 1)}
               disabled={currentPage === pagination.last_page}
-              className="ml-3 relative inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+              className="relative inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               Suivant
             </button>
@@ -292,41 +286,42 @@ const CodesPromoList = () => {
                 </button>
                 
                 {/* Pages numbers */}
-                {Array.from({ length: pagination.last_page }, (_, i) => i + 1).map((page) => {
-                  // Afficher seulement quelques pages pour éviter la surcharge
-                  if (
-                    page === 1 ||
-                    page === pagination.last_page ||
-                    (page >= currentPage - 2 && page <= currentPage + 2)
-                  ) {
-                    return (
-                      <button
-                        key={page}
-                        onClick={() => handlePageChange(page)}
-                        className={`relative inline-flex items-center px-4 py-2 border text-sm font-medium ${
-                          currentPage === page
-                            ? "z-10 bg-primary-50 border-primary-500 text-primary-600"
-                            : "bg-white border-gray-300 text-gray-500 hover:bg-gray-50"
-                        }`}
-                      >
-                        {page}
-                      </button>
-                    );
-                  } else if (
-                    page === currentPage - 3 ||
-                    page === currentPage + 3
-                  ) {
-                    return (
-                      <span
-                        key={page}
-                        className="relative inline-flex items-center px-4 py-2 border border-gray-300 bg-white text-sm font-medium text-gray-700"
-                      >
-                        ...
-                      </span>
-                    );
-                  }
-                  return null;
-                })}
+                <div className="hidden sm:flex">
+                  {Array.from({ length: pagination.last_page }, (_, i) => i + 1).map((page) => {
+                    if (
+                      page === 1 ||
+                      page === pagination.last_page ||
+                      (page >= currentPage - 2 && page <= currentPage + 2)
+                    ) {
+                      return (
+                        <button
+                          key={page}
+                          onClick={() => handlePageChange(page)}
+                          className={`relative inline-flex items-center px-4 py-2 border text-sm font-medium ${
+                            currentPage === page
+                              ? "z-10 bg-primary-50 border-primary-500 text-primary-600"
+                              : "bg-white border-gray-300 text-gray-500 hover:bg-gray-50"
+                          }`}
+                        >
+                          {page}
+                        </button>
+                      );
+                    } else if (
+                      page === currentPage - 3 ||
+                      page === currentPage + 3
+                    ) {
+                      return (
+                        <span
+                          key={page}
+                          className="relative inline-flex items-center px-4 py-2 border border-gray-300 bg-white text-sm font-medium text-gray-700"
+                        >
+                          ...
+                        </span>
+                      );
+                    }
+                    return null;
+                  })}
+                </div>
                 
                 <button
                   onClick={() => handlePageChange(currentPage + 1)}
