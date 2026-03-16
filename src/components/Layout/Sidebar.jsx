@@ -7,6 +7,7 @@ import {
   TagIcon,
   UserCircleIcon,
   XMarkIcon,
+  ChartBarIcon,
 } from "@heroicons/react/24/outline";
 import { useAuth } from "../../context/AuthContext";
 
@@ -84,7 +85,9 @@ const Sidebar = ({ sidebarOpen, setSidebarOpen }) => {
     { name: "Livraisons", href: "/livraisons", icon: TruckIcon },
     { name: "Livreurs", href: "/livreurs", icon: UsersIcon },
     { name: "Codes Promo", href: "/codes-promo", icon: TagIcon },
+     { name: "Comptabilité", href: "/comptabilite", icon: ChartBarIcon },
     { name: "Profil", href: "/profile", icon: UserCircleIcon },
+    
   ];
 
   return (
