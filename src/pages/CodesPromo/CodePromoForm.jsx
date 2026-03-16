@@ -24,10 +24,20 @@ const schema = yup.object({
     .number()
     .positive("Doit être positif")
     .required("La valeur est requise"),
-  min_commande: yup.number().nullable().positive("Doit être positif"),
+  min_commande: yup
+    .number()
+    .nullable()
+    .transform((value, originalValue) => {
+      return originalValue === "" ? null : value;
+    })
+    .positive("Doit être positif"),
   max_utilisations: yup
     .number()
     .nullable()
+    .transform((value, originalValue) => {
+      // Transformer les chaînes vides en null
+      return originalValue === "" ? null : value;
+    })
     .positive("Doit être positif")
     .integer("Doit être un nombre entier"),
   date_debut: yup.string().nullable(),
@@ -65,6 +75,8 @@ const CodePromoForm = () => {
     defaultValues: {
       type: "percentage",
       status: "actif",
+      min_commande: null,
+      max_utilisations: null,
     },
   });
 
@@ -371,4 +383,4 @@ const CodePromoForm = () => {
   );
 };
 
-export default CodePromoForm; // ⚠️ Vérifiez cette ligne
+export default CodePromoForm;

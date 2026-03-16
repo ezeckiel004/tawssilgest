@@ -27,7 +27,28 @@ api.interceptors.request.use(
 api.interceptors.response.use(
   (response) => response,
   (error) => {
-    if (error.response?.status === 401) {
+    console.error("Erreur API:", error.response?.status, error.response?.data);
+    
+    if (error.response?.status === 422) {
+      // Erreur de validation - afficher les détails
+      const responseData = error.response.data;
+      
+      if (responseData.errors) {
+        // Afficher chaque erreur de validation
+        Object.keys(responseData.errors).forEach(key => {
+          const messages = responseData.errors[key];
+          if (Array.isArray(messages)) {
+            messages.forEach(msg => toast.error(msg));
+          } else {
+            toast.error(`${key}: ${messages}`);
+          }
+        });
+      } else if (responseData.message) {
+        toast.error(responseData.message);
+      } else {
+        toast.error('Erreur de validation des données');
+      }
+    } else if (error.response?.status === 401) {
       localStorage.removeItem('token');
       localStorage.removeItem('user');
       window.location.href = '/login';
@@ -39,6 +60,7 @@ api.interceptors.response.use(
     } else if (error.response?.status >= 500) {
       toast.error('Erreur serveur. Veuillez réessayer plus tard.');
     }
+    
     return Promise.reject(error);
   }
 );

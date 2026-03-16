@@ -30,8 +30,8 @@ export const toggleLivreurActivation = (id) =>
   api.patch(`/manager/livreurs/${id}/toggle-activation`);
 
 // Codes Promo
-export const getCodesPromo = () => 
-  api.get('/manager/codes-promo');
+export const getCodesPromo = (page = 1) => 
+  api.get(`/manager/codes-promo?page=${page}`);
 
 export const getCodePromoById = (id) => 
   api.get(`/manager/codes-promo/${id}`);
@@ -45,11 +45,42 @@ export const updateCodePromo = (id, data) =>
 export const deleteCodePromo = (id) => 
   api.delete(`/manager/codes-promo/${id}`);
 
-export const addLivreursToCodePromo = (id, livreurs) => 
-  api.post(`/manager/codes-promo/${id}/add-livreurs`, { livreurs });
+// Gestion des livreurs pour les codes promo - CORRIGÉ
+export const addLivreursToCodePromo = (id, livreurs) => {
+  // S'assurer que livreurs est un tableau
+  const livreursArray = Array.isArray(livreurs) ? livreurs : [livreurs];
+  
+  // Filtrer les valeurs null/undefined et convertir en nombre si nécessaire
+  const validLivreurs = livreursArray
+    .filter(l => l != null && l !== '')
+    .map(l => {
+      // Si c'est un UUID ou un string, le garder comme string
+      // Si c'est un nombre, le garder comme nombre
+      return l;
+    });
+  
+  console.log("Envoi des livreurs:", validLivreurs);
+  
+  return api.post(`/manager/codes-promo/${id}/add-livreurs`, { 
+    livreurs: validLivreurs 
+  });
+};
 
-export const removeLivreursFromCodePromo = (id, livreurs) => 
-  api.delete(`/manager/codes-promo/${id}/remove-livreurs`, { data: { livreurs } });
+export const removeLivreursFromCodePromo = (id, livreurs) => {
+  // S'assurer que livreurs est un tableau
+  const livreursArray = Array.isArray(livreurs) ? livreurs : [livreurs];
+  
+  // Filtrer les valeurs null/undefined
+  const validLivreurs = livreursArray
+    .filter(l => l != null && l !== '')
+    .map(l => l);
+  
+  console.log("Retrait des livreurs:", validLivreurs);
+  
+  return api.delete(`/manager/codes-promo/${id}/remove-livreurs`, { 
+    data: { livreurs: validLivreurs } 
+  });
+};
 
 // Profil
 export const getProfile = () => 
