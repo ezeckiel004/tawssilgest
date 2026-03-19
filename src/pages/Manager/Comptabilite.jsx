@@ -7,9 +7,6 @@ import {
   FaBoxes,
   FaTruck,
   FaDownload,
-  FaArrowUp,
-  FaArrowDown,
-  FaMinus,
   FaShoppingBag,
   FaRoad,
   FaFileExport,
@@ -17,49 +14,66 @@ import {
   FaCheckCircle,
   FaTimesCircle,
   FaSpinner,
+  FaUserTie,
+  FaCalendarAlt,
+  FaPercentage,
 } from "react-icons/fa";
 import {
   LineChart,
   Line,
-  BarChart,
-  Bar,
   XAxis,
   YAxis,
   CartesianGrid,
   Tooltip,
   Legend,
   ResponsiveContainer,
-  PieChart,
-  Pie,
-  Cell,
 } from "recharts";
 import {
   getBilanComptable,
-  exportBilan,
+  getMesGains,
   getStatistiquesMensuelles,
+  exportBilan,
   formatMontant,
   formatNombre,
   getTendanceColor,
   getTendanceIcon,
+  traduireStatut,
+  getCouleurStatut,
 } from "../../services/manager";
+import * as managerService from "../../services/manager";
 
-const COLORS = {
-  en_attente: "#9CA3AF",
-  prise_en_charge_ramassage: "#3B82F6",
-  ramasse: "#6366F1",
-  en_transit: "#F59E0B",
-  prise_en_charge_livraison: "#F97316",
-  livre: "#10B981",
-  annule: "#EF4444",
+// Service pour les gains (à ajouter dans manager.js)
+const gainService = {
+  getMesGains: async (params) => {
+    const response = await managerService.api.get('/manager/gains', { params });
+    return response.data;
+  },
+  getGainsEnAttente: async () => {
+    const response = await managerService.api.get('/manager/gains/en-attente');
+    return response.data;
+  },
+  demanderPaiement: async (gainId) => {
+    const response = await managerService.api.post(`/manager/gains/demander/${gainId}`);
+    return response.data;
+  },
+  demanderPaiementMultiple: async (gainIds) => {
+    const response = await managerService.api.post('/manager/gains/demander-multiple', { gain_ids: gainIds });
+    return response.data;
+  }
 };
 
 const Comptabilite = () => {
-  const [stats, setStats] = useState(null);
+  const [bilan, setBilan] = useState(null);
+  const [mesGains, setMesGains] = useState(null);
   const [statsMensuelles, setStatsMensuelles] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [loadingGains, setLoadingGains] = useState(false);
   const [loadingMensuel, setLoadingMensuel] = useState(false);
   const [period, setPeriod] = useState("mois");
   const [anneeGraphique, setAnneeGraphique] = useState(new Date().getFullYear());
+  const [ongletActif, setOngletActif] = useState("bilan"); // 'bilan' ou 'gains'
+  const [selectedGains, setSelectedGains] = useState([]);
+  const [showDemandeModal, setShowDemandeModal] = useState(false);
   const [customDate, setCustomDate] = useState({
     debut: new Date(new Date().getFullYear(), new Date().getMonth(), 1)
       .toISOString()
@@ -68,31 +82,52 @@ const Comptabilite = () => {
   });
 
   useEffect(() => {
-    fetchData();
+    fetchBilan();
   }, [period, customDate]);
+
+  useEffect(() => {
+    if (ongletActif === "gains") {
+      fetchMesGains();
+    }
+  }, [ongletActif, period, customDate]);
 
   useEffect(() => {
     fetchStatistiquesMensuelles();
   }, [anneeGraphique]);
 
-  const fetchData = async () => {
+  const fetchBilan = async () => {
     try {
       setLoading(true);
-
-      let params = { periode: period };
-
+      const params = { periode: period };
       if (period === "personnalise") {
         params.date_debut = customDate.debut;
         params.date_fin = customDate.fin;
       }
-
       const response = await getBilanComptable(params);
-      setStats(response.data.data);
+      setBilan(response.data);
     } catch (error) {
-      console.error("Erreur chargement données:", error);
-      toast.error("Erreur lors du chargement des données");
+      console.error("❌ Erreur chargement bilan:", error);
+      toast.error("Erreur lors du chargement du bilan");
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchMesGains = async () => {
+    try {
+      setLoadingGains(true);
+      const params = { periode: period };
+      if (period === "personnalise") {
+        params.date_debut = customDate.debut;
+        params.date_fin = customDate.fin;
+      }
+      const response = await gainService.getMesGains(params);
+      setMesGains(response.data);
+    } catch (error) {
+      console.error("❌ Erreur chargement gains:", error);
+      toast.error("Erreur lors du chargement des gains");
+    } finally {
+      setLoadingGains(false);
     }
   };
 
@@ -100,9 +135,9 @@ const Comptabilite = () => {
     try {
       setLoadingMensuel(true);
       const response = await getStatistiquesMensuelles(anneeGraphique);
-      setStatsMensuelles(response.data.data || []);
+      setStatsMensuelles(response.data || []);
     } catch (error) {
-      console.error("Erreur chargement stats mensuelles:", error);
+      console.error("❌ Erreur chargement stats mensuelles:", error);
     } finally {
       setLoadingMensuel(false);
     }
@@ -110,16 +145,14 @@ const Comptabilite = () => {
 
   const handleExport = async (format = "excel") => {
     try {
-      let params = {
+      const params = {
         periode: period,
         format,
       };
-
       if (period === "personnalise") {
         params.date_debut = customDate.debut;
         params.date_fin = customDate.fin;
       }
-
       await exportBilan(params);
       toast.success("Bilan exporté avec succès");
     } catch (error) {
@@ -127,41 +160,69 @@ const Comptabilite = () => {
     }
   };
 
-  const StatCard = ({
-    title,
-    value,
-    icon: Icon,
-    color,
-    evolution,
-    subValue,
-    suffix = "",
-  }) => (
+  // ==================== GESTION DES GAINS ====================
+
+  const handleSelectAll = () => {
+    const gainsEnAttente = mesGains?.gains?.filter(g => g.status === 'en_attente') || [];
+    if (selectedGains.length === gainsEnAttente.length) {
+      setSelectedGains([]);
+    } else {
+      setSelectedGains(gainsEnAttente.map(g => g.id));
+    }
+  };
+
+  const handleSelectGain = (gainId) => {
+    if (selectedGains.includes(gainId)) {
+      setSelectedGains(selectedGains.filter(id => id !== gainId));
+    } else {
+      setSelectedGains([...selectedGains, gainId]);
+    }
+  };
+
+  const handleDemanderPaiement = async (gainId) => {
+    try {
+      const response = await gainService.demanderPaiement(gainId);
+      toast.success(response.message || "Demande envoyée avec succès");
+      fetchMesGains(); // Rafraîchir la liste
+    } catch (error) {
+      toast.error(error.response?.data?.message || "Erreur lors de la demande");
+    }
+  };
+
+  const handleDemanderMultiple = async () => {
+    if (selectedGains.length === 0) {
+      toast.error("Veuillez sélectionner au moins un gain");
+      return;
+    }
+    setShowDemandeModal(true);
+  };
+
+  const confirmerDemandeMultiple = async () => {
+    try {
+      const response = await gainService.demanderPaiementMultiple(selectedGains);
+      toast.success(response.message || `${selectedGains.length} demande(s) envoyée(s)`);
+      setSelectedGains([]);
+      setShowDemandeModal(false);
+      fetchMesGains(); // Rafraîchir la liste
+    } catch (error) {
+      toast.error(error.response?.data?.message || "Erreur lors de la demande");
+    }
+  };
+
+  const StatCard = ({ title, value, icon: Icon, color, subValue }) => (
     <div className="bg-white rounded-lg shadow p-6">
       <div className="flex items-center justify-between mb-4">
         <div className={`p-3 rounded-lg ${color}`}>
           <Icon className="w-6 h-6 text-white" />
         </div>
-        {evolution !== undefined && (
-          <div
-            className={`flex items-center gap-1 text-sm ${getTendanceColor(
-              evolution
-            )}`}
-          >
-            <span>{getTendanceIcon(evolution)}</span>
-            <span>{Math.abs(evolution)}%</span>
-          </div>
-        )}
       </div>
       <p className="text-sm text-gray-600 mb-1">{title}</p>
-      <p className="text-2xl font-bold text-gray-900">
-        {value}
-        {suffix}
-      </p>
+      <p className="text-2xl font-bold text-gray-900">{value}</p>
       {subValue && <p className="text-xs text-gray-500 mt-1">{subValue}</p>}
     </div>
   );
 
-  if (loading) {
+  if (loading && ongletActif === "bilan") {
     return (
       <div className="flex justify-center items-center h-64">
         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600"></div>
@@ -169,163 +230,144 @@ const Comptabilite = () => {
     );
   }
 
+  const gainsEnAttente = mesGains?.gains?.filter(g => g.status === 'en_attente') || [];
+  const montantSelectionne = mesGains?.gains
+    ?.filter(g => selectedGains.includes(g.id))
+    .reduce((sum, g) => sum + g.montant_commission, 0) || 0;
+
   return (
     <div className="container mx-auto px-4 py-8">
       {/* En-tête */}
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">
-            Bilan financier
-          </h1>
-          <p className="text-gray-600">
-            {stats?.periode?.libelle || "Sélectionnez une période"}
+      <div className="mb-8">
+        <h1 className="text-2xl font-bold text-gray-900">Espace Gestionnaire</h1>
+        {bilan?.gestionnaire && (
+          <p className="text-gray-600 mt-1">
+            Wilaya : {bilan.gestionnaire.wilaya_nom} ({bilan.gestionnaire.wilaya_id})
           </p>
-          {stats?.gestionnaire && (
-            <p className="text-sm font-medium text-primary-600 mt-1">
-              Wilaya : {stats.gestionnaire.wilaya_nom} (
-              {stats.gestionnaire.wilaya_id})
-            </p>
-          )}
-        </div>
-
-        <div className="flex flex-wrap gap-2 mt-4 md:mt-0">
-          {/* Filtres de période */}
-          <button
-            onClick={() => setPeriod("jour")}
-            className={`px-4 py-2 rounded-lg text-sm font-medium transition ${
-              period === "jour"
-                ? "bg-primary-600 text-white"
-                : "bg-gray-100 text-gray-700 hover:bg-gray-200"
-            }`}
-          >
-            Jour
-          </button>
-          <button
-            onClick={() => setPeriod("semaine")}
-            className={`px-4 py-2 rounded-lg text-sm font-medium transition ${
-              period === "semaine"
-                ? "bg-primary-600 text-white"
-                : "bg-gray-100 text-gray-700 hover:bg-gray-200"
-            }`}
-          >
-            Semaine
-          </button>
-          <button
-            onClick={() => setPeriod("mois")}
-            className={`px-4 py-2 rounded-lg text-sm font-medium transition ${
-              period === "mois"
-                ? "bg-primary-600 text-white"
-                : "bg-gray-100 text-gray-700 hover:bg-gray-200"
-            }`}
-          >
-            Mois
-          </button>
-          <button
-            onClick={() => setPeriod("annee")}
-            className={`px-4 py-2 rounded-lg text-sm font-medium transition ${
-              period === "annee"
-                ? "bg-primary-600 text-white"
-                : "bg-gray-100 text-gray-700 hover:bg-gray-200"
-            }`}
-          >
-            Année
-          </button>
-          <button
-            onClick={() => setPeriod("personnalise")}
-            className={`px-4 py-2 rounded-lg text-sm font-medium transition ${
-              period === "personnalise"
-                ? "bg-primary-600 text-white"
-                : "bg-gray-100 text-gray-700 hover:bg-gray-200"
-            }`}
-          >
-            Perso
-          </button>
-
-          {/* Boutons d'export */}
-          <button
-            onClick={() => handleExport("excel")}
-            className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition flex items-center gap-2"
-            title="Exporter en Excel"
-          >
-            <FaFileExport />
-          </button>
-          <button
-            onClick={() => handleExport("pdf")}
-            className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition flex items-center gap-2"
-            title="Exporter en PDF"
-          >
-            <FaDownload />
-          </button>
-        </div>
+        )}
       </div>
 
-      {/* Période personnalisée */}
-      {period === "personnalise" && (
-        <div className="bg-white rounded-lg shadow p-4 mb-6">
-          <div className="flex flex-wrap items-end gap-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Date début
-              </label>
-              <input
-                type="date"
-                value={customDate.debut}
-                onChange={(e) =>
-                  setCustomDate({ ...customDate, debut: e.target.value })
-                }
-                className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-primary-500 focus:border-primary-500"
-              />
+      {/* Onglets */}
+      <div className="flex gap-2 mb-6 border-b border-gray-200">
+        <button
+          onClick={() => setOngletActif("bilan")}
+          className={`px-4 py-2 text-sm font-medium transition ${
+            ongletActif === "bilan"
+              ? "text-primary-600 border-b-2 border-primary-600"
+              : "text-gray-500 hover:text-gray-700"
+          }`}
+        >
+          Bilan financier
+        </button>
+        <button
+          onClick={() => setOngletActif("gains")}
+          className={`px-4 py-2 text-sm font-medium transition ${
+            ongletActif === "gains"
+              ? "text-primary-600 border-b-2 border-primary-600"
+              : "text-gray-500 hover:text-gray-700"
+          }`}
+        >
+          Mes gains
+        </button>
+      </div>
+
+      {/* Filtres de période */}
+      <div className="bg-white rounded-lg shadow p-4 mb-6">
+        <div className="flex flex-wrap items-center gap-4">
+          <div className="flex gap-2">
+            {["jour", "semaine", "mois", "annee", "personnalise"].map((p) => (
+              <button
+                key={p}
+                onClick={() => setPeriod(p)}
+                className={`px-3 py-1.5 text-sm font-medium rounded-lg transition ${
+                  period === p
+                    ? "bg-primary-600 text-white"
+                    : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+                }`}
+              >
+                {p === "jour" && "Jour"}
+                {p === "semaine" && "Semaine"}
+                {p === "mois" && "Mois"}
+                {p === "annee" && "Année"}
+                {p === "personnalise" && "Personnalisé"}
+              </button>
+            ))}
+          </div>
+
+          {period === "personnalise" && (
+            <div className="flex items-center gap-4 ml-auto">
+              <div>
+                <label className="block text-xs text-gray-500 mb-1">Début</label>
+                <input
+                  type="date"
+                  value={customDate.debut}
+                  onChange={(e) => setCustomDate({ ...customDate, debut: e.target.value })}
+                  className="px-3 py-1.5 border border-gray-300 rounded-lg text-sm"
+                />
+              </div>
+              <div>
+                <label className="block text-xs text-gray-500 mb-1">Fin</label>
+                <input
+                  type="date"
+                  value={customDate.fin}
+                  onChange={(e) => setCustomDate({ ...customDate, fin: e.target.value })}
+                  className="px-3 py-1.5 border border-gray-300 rounded-lg text-sm"
+                />
+              </div>
             </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Date fin
-              </label>
-              <input
-                type="date"
-                value={customDate.fin}
-                onChange={(e) =>
-                  setCustomDate({ ...customDate, fin: e.target.value })
-                }
-                className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-primary-500 focus:border-primary-500"
-              />
-            </div>
+          )}
+
+          <div className="flex gap-2 ml-auto">
             <button
-              onClick={fetchData}
-              className="px-6 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700"
+              onClick={() => handleExport("excel")}
+              className="p-2 bg-green-600 text-white rounded-lg hover:bg-green-700"
+              title="Exporter en Excel"
             >
-              Appliquer
+              <FaFileExport />
+            </button>
+            <button
+              onClick={() => handleExport("pdf")}
+              className="p-2 bg-red-600 text-white rounded-lg hover:bg-red-700"
+              title="Exporter en PDF"
+            >
+              <FaDownload />
             </button>
           </div>
         </div>
-      )}
+      </div>
 
-      {stats && (
+      {/* Contenu selon l'onglet */}
+      {ongletActif === "bilan" && bilan && (
         <>
           {/* Cartes principales */}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
             <StatCard
-              title="Chiffre d'affaires total"
-              value={formatMontant(stats.finances?.chiffre_affaires_total)}
+              title="Chiffre d'affaires"
+              value={formatMontant(bilan.finances?.chiffre_affaires_total)}
               icon={FaMoneyBillWave}
               color="bg-green-500"
+              subValue={`${formatNombre(bilan.livraisons?.total)} livraisons`}
             />
             <StatCard
               title="Valeur des colis"
-              value={formatMontant(stats.finances?.valeur_colis)}
+              value={formatMontant(bilan.finances?.valeur_colis)}
               icon={FaShoppingBag}
               color="bg-blue-500"
+              subValue={`${formatNombre(bilan.colis?.total)} colis`}
             />
             <StatCard
               title="Revenus livraisons"
-              value={formatMontant(stats.finances?.revenus_livraisons)}
+              value={formatMontant(bilan.finances?.revenus_livraisons)}
               icon={FaTruck}
               color="bg-purple-500"
+              subValue={`Moy. ${formatMontant(bilan.livraisons?.prix_moyen)}`}
             />
             <StatCard
               title="Revenus navettes"
-              value={formatMontant(stats.finances?.revenus_navettes)}
+              value={formatMontant(bilan.finances?.revenus_navettes)}
               icon={FaRoad}
               color="bg-orange-500"
+              subValue={`${formatNombre(bilan.navettes?.total)} navettes`}
             />
           </div>
 
@@ -333,20 +375,20 @@ const Comptabilite = () => {
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
             <div className="bg-white rounded-lg shadow p-6">
               <div className="flex items-center gap-3 mb-4">
-                <div className="p-2 bg-blue-100 rounded-lg">
-                  <FaCheckCircle className="w-5 h-5 text-blue-600" />
+                <div className="p-2 bg-green-100 rounded-lg">
+                  <FaCheckCircle className="w-5 h-5 text-green-600" />
                 </div>
                 <div>
                   <p className="text-sm text-gray-600">Taux de succès</p>
                   <p className="text-2xl font-bold text-gray-900">
-                    {stats.livraisons?.taux_succès || 0}%
+                    {bilan.livraisons?.taux_succes || 0}%
                   </p>
                 </div>
               </div>
               <div className="flex justify-between text-sm">
                 <span className="text-gray-500">Livraisons réussies</span>
                 <span className="font-medium text-green-600">
-                  {formatNombre(stats.livraisons?.terminées)}
+                  {formatNombre(bilan.livraisons?.terminees)}
                 </span>
               </div>
             </div>
@@ -359,27 +401,27 @@ const Comptabilite = () => {
                 <div>
                   <p className="text-sm text-gray-600">Délai moyen</p>
                   <p className="text-2xl font-bold text-gray-900">
-                    {stats.livraisons?.duree_moyenne_livraison || 0}h
+                    {bilan.livraisons?.duree_moyenne_livraison || 0}h
                   </p>
                 </div>
               </div>
               <div className="flex justify-between text-sm">
                 <span className="text-gray-500">Livraisons en cours</span>
                 <span className="font-medium text-yellow-600">
-                  {formatNombre(stats.livraisons?.en_cours)}
+                  {formatNombre(bilan.livraisons?.en_cours)}
                 </span>
               </div>
             </div>
 
             <div className="bg-white rounded-lg shadow p-6">
               <div className="flex items-center gap-3 mb-4">
-                <div className="p-2 bg-green-100 rounded-lg">
-                  <FaSpinner className="w-5 h-5 text-green-600" />
+                <div className="p-2 bg-blue-100 rounded-lg">
+                  <FaChartLine className="w-5 h-5 text-blue-600" />
                 </div>
                 <div>
                   <p className="text-sm text-gray-600">Activité</p>
                   <p className="text-2xl font-bold text-gray-900">
-                    {stats.performances?.livraisons_par_jour || 0}/jour
+                    {bilan.performances?.livraisons_par_jour || 0}/jour
                   </p>
                 </div>
               </div>
@@ -387,199 +429,12 @@ const Comptabilite = () => {
                 <span className="text-gray-500">Évolution</span>
                 <span
                   className={`font-medium ${getTendanceColor(
-                    stats.performances?.evolution_activite
+                    bilan.performances?.evolution_activite
                   )}`}
                 >
-                  {getTendanceIcon(stats.performances?.evolution_activite)}{" "}
-                  {Math.abs(stats.performances?.evolution_activite || 0)}%
+                  {getTendanceIcon(bilan.performances?.evolution_activite)}{" "}
+                  {Math.abs(bilan.performances?.evolution_activite || 0)}%
                 </span>
-              </div>
-            </div>
-          </div>
-
-          {/* Statistiques détaillées */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
-            {/* Détail des colis */}
-            <div className="bg-white rounded-lg shadow p-6">
-              <h2 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
-                <FaBoxes className="text-primary-600" />
-                Statistiques des colis
-              </h2>
-              <div className="space-y-4">
-                <div className="flex justify-between items-center p-3 bg-gray-50 rounded-lg">
-                  <span className="text-gray-700">Nombre total de colis</span>
-                  <span className="font-semibold text-lg">
-                    {formatNombre(stats.colis?.total)}
-                  </span>
-                </div>
-                <div className="flex justify-between items-center p-3 bg-gray-50 rounded-lg">
-                  <span className="text-gray-700">
-                    Valeur moyenne par colis
-                  </span>
-                  <span className="font-semibold text-lg">
-                    {formatMontant(stats.colis?.valeur_moyenne)}
-                  </span>
-                </div>
-                <div className="flex justify-between items-center p-3 bg-gray-50 rounded-lg">
-                  <span className="text-gray-700">Poids total</span>
-                  <span className="font-semibold text-lg">
-                    {stats.colis?.poids_total || 0} kg
-                  </span>
-                </div>
-                <div className="flex justify-between items-center p-3 bg-gray-50 rounded-lg">
-                  <span className="text-gray-700">Colis avec prix</span>
-                  <span className="font-semibold text-lg">
-                    {formatNombre(stats.colis?.avec_prix)}
-                  </span>
-                </div>
-              </div>
-            </div>
-
-            {/* Détail des livraisons */}
-            <div className="bg-white rounded-lg shadow p-6">
-              <h2 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
-                <FaTruck className="text-primary-600" />
-                Statistiques des livraisons
-              </h2>
-              <div className="space-y-4">
-                <div className="flex justify-between items-center p-3 bg-gray-50 rounded-lg">
-                  <span className="text-gray-700">
-                    Nombre total de livraisons
-                  </span>
-                  <span className="font-semibold text-lg">
-                    {formatNombre(stats.livraisons?.total)}
-                  </span>
-                </div>
-                <div className="flex justify-between items-center p-3 bg-gray-50 rounded-lg">
-                  <span className="text-gray-700">Livraisons terminées</span>
-                  <span className="font-semibold text-green-600">
-                    {formatNombre(stats.livraisons?.terminees)}
-                  </span>
-                </div>
-                <div className="flex justify-between items-center p-3 bg-gray-50 rounded-lg">
-                  <span className="text-gray-700">Livraisons en cours</span>
-                  <span className="font-semibold text-yellow-600">
-                    {formatNombre(stats.livraisons?.en_cours)}
-                  </span>
-                </div>
-                <div className="flex justify-between items-center p-3 bg-gray-50 rounded-lg">
-                  <span className="text-gray-700">Prix moyen de livraison</span>
-                  <span className="font-semibold text-lg">
-                    {formatMontant(stats.livraisons?.prix_moyen)}
-                  </span>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* Répartition des statuts et des revenus */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
-            {/* Répartition des statuts */}
-            <div className="bg-white rounded-lg shadow p-6">
-              <h2 className="text-lg font-semibold text-gray-900 mb-4">
-                Répartition des livraisons par statut
-              </h2>
-              <div className="space-y-3">
-                {stats.statuts_livraisons &&
-                  Object.entries(stats.statuts_livraisons).map(
-                    ([statut, data]) => {
-                      const total = stats.livraisons?.total || 1;
-                      const pourcentage = ((data.count / total) * 100).toFixed(
-                        1
-                      );
-                      return (
-                        <div key={statut}>
-                          <div className="flex justify-between text-sm mb-1">
-                            <span className="capitalize">
-                              {statut.replace(/_/g, " ")}
-                            </span>
-                            <span className="font-medium">
-                              {formatNombre(data.count)} ({pourcentage}%)
-                            </span>
-                          </div>
-                          <div className="w-full bg-gray-200 rounded-full h-2">
-                            <div
-                              className="h-2 rounded-full"
-                              style={{
-                                width: `${pourcentage}%`,
-                                backgroundColor: COLORS[statut] || "#9CA3AF",
-                              }}
-                            ></div>
-                          </div>
-                        </div>
-                      );
-                    }
-                  )}
-              </div>
-            </div>
-
-            {/* Répartition des revenus */}
-            <div className="bg-white rounded-lg shadow p-6">
-              <h2 className="text-lg font-semibold text-gray-900 mb-4">
-                Répartition des revenus
-              </h2>
-              <div className="space-y-4">
-                <div>
-                  <div className="flex justify-between text-sm mb-1">
-                    <span className="text-gray-600">Colis</span>
-                    <span className="font-semibold">
-                      {formatMontant(stats.finances?.repartition?.colis?.montant)}
-                    </span>
-                  </div>
-                  <div className="w-full bg-gray-200 rounded-full h-2">
-                    <div
-                      className="bg-blue-500 h-2 rounded-full"
-                      style={{
-                        width: `${stats.finances?.repartition?.colis?.pourcentage || 0}%`,
-                      }}
-                    ></div>
-                  </div>
-                </div>
-                <div>
-                  <div className="flex justify-between text-sm mb-1">
-                    <span className="text-gray-600">Livraisons</span>
-                    <span className="font-semibold">
-                      {formatMontant(
-                        stats.finances?.repartition?.livraisons?.montant
-                      )}
-                    </span>
-                  </div>
-                  <div className="w-full bg-gray-200 rounded-full h-2">
-                    <div
-                      className="bg-purple-500 h-2 rounded-full"
-                      style={{
-                        width: `${stats.finances?.repartition?.livraisons?.pourcentage || 0}%`,
-                      }}
-                    ></div>
-                  </div>
-                </div>
-                <div>
-                  <div className="flex justify-between text-sm mb-1">
-                    <span className="text-gray-600">Navettes</span>
-                    <span className="font-semibold">
-                      {formatMontant(
-                        stats.finances?.repartition?.navettes?.montant
-                      )}
-                    </span>
-                  </div>
-                  <div className="w-full bg-gray-200 rounded-full h-2">
-                    <div
-                      className="bg-orange-500 h-2 rounded-full"
-                      style={{
-                        width: `${stats.finances?.repartition?.navettes?.pourcentage || 0}%`,
-                      }}
-                    ></div>
-                  </div>
-                </div>
-
-                <div className="pt-4 border-t border-gray-200">
-                  <div className="flex justify-between items-center">
-                    <span className="font-medium text-gray-900">Total</span>
-                    <span className="font-bold text-lg text-green-600">
-                      {formatMontant(stats.finances?.chiffre_affaires_total)}
-                    </span>
-                  </div>
-                </div>
               </div>
             </div>
           </div>
@@ -593,12 +448,10 @@ const Comptabilite = () => {
               <select
                 value={anneeGraphique}
                 onChange={(e) => setAnneeGraphique(parseInt(e.target.value))}
-                className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-primary-500 focus:border-primary-500"
+                className="px-3 py-2 border border-gray-300 rounded-lg text-sm"
               >
-                {[2023, 2024, 2025].map((annee) => (
-                  <option key={annee} value={annee}>
-                    {annee}
-                  </option>
+                {[2023, 2024, 2025, 2026].map((annee) => (
+                  <option key={annee} value={annee}>{annee}</option>
                 ))}
               </select>
             </div>
@@ -615,8 +468,10 @@ const Comptabilite = () => {
                   <YAxis yAxisId="left" />
                   <YAxis yAxisId="right" orientation="right" />
                   <Tooltip
-                    formatter={(value) => formatMontant(value)}
-                    labelFormatter={(label) => `Mois: ${label}`}
+                    formatter={(value, name) => {
+                      if (name === "chiffre_affaires") return formatMontant(value);
+                      return value;
+                    }}
                   />
                   <Legend />
                   <Line
@@ -640,6 +495,193 @@ const Comptabilite = () => {
             )}
           </div>
         </>
+      )}
+
+      {ongletActif === "gains" && (
+        <div className="space-y-6">
+          {loadingGains ? (
+            <div className="flex justify-center items-center h-64">
+              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600"></div>
+            </div>
+          ) : mesGains ? (
+            <>
+              {/* Cartes résumé des gains */}
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                <div className="bg-gradient-to-br from-primary-500 to-primary-600 rounded-lg shadow p-4 text-white">
+                  <p className="text-sm opacity-90 mb-1">Total gains</p>
+                  <p className="text-2xl font-bold">{formatMontant(mesGains.stats?.total_gains)}</p>
+                </div>
+                <div className="bg-yellow-100 rounded-lg shadow p-4">
+                  <p className="text-sm text-yellow-800 mb-1">En attente</p>
+                  <p className="text-2xl font-bold text-yellow-600">
+                    {formatMontant(mesGains.stats?.en_attente)}
+                  </p>
+                  <p className="text-xs text-yellow-700">{mesGains.stats?.nb_en_attente} gains</p>
+                </div>
+                <div className="bg-blue-100 rounded-lg shadow p-4">
+                  <p className="text-sm text-blue-800 mb-1">Demandes envoyées</p>
+                  <p className="text-2xl font-bold text-blue-600">
+                    {formatMontant(mesGains.stats?.demande_envoyee)}
+                  </p>
+                  <p className="text-xs text-blue-700">{mesGains.stats?.nb_demandes} gains</p>
+                </div>
+                <div className="bg-green-100 rounded-lg shadow p-4">
+                  <p className="text-sm text-green-800 mb-1">Payés</p>
+                  <p className="text-2xl font-bold text-green-600">
+                    {formatMontant(mesGains.stats?.paye)}
+                  </p>
+                </div>
+              </div>
+
+              {/* Actions pour gains en attente */}
+              {gainsEnAttente.length > 0 && (
+                <div className="bg-white rounded-lg shadow p-4 flex flex-wrap justify-between items-center gap-4">
+                  <div>
+                    <p className="font-medium text-gray-900">
+                      {gainsEnAttente.length} gain(s) disponible(s) ({formatMontant(mesGains.stats?.en_attente)})
+                    </p>
+                    <p className="text-sm text-gray-600">
+                      Vous pouvez demander le paiement de vos gains
+                    </p>
+                  </div>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={handleSelectAll}
+                      className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200"
+                    >
+                      {selectedGains.length === gainsEnAttente.length ? 'Tout désélectionner' : 'Tout sélectionner'}
+                    </button>
+                    <button
+                      onClick={handleDemanderMultiple}
+                      disabled={selectedGains.length === 0}
+                      className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 disabled:opacity-50"
+                    >
+                      Demander le paiement ({selectedGains.length})
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* Tableau des gains */}
+              <div className="bg-white rounded-lg shadow overflow-hidden">
+                <div className="px-6 py-4 border-b border-gray-200">
+                  <h2 className="text-lg font-semibold text-gray-900">Historique des gains</h2>
+                </div>
+                <div className="overflow-x-auto">
+                  <table className="min-w-full divide-y divide-gray-200">
+                    <thead className="bg-gray-50">
+                      <tr>
+                        <th className="px-6 py-3 text-left">
+                          {gainsEnAttente.length > 0 && (
+                            <input
+                              type="checkbox"
+                              checked={selectedGains.length === gainsEnAttente.length && gainsEnAttente.length > 0}
+                              onChange={handleSelectAll}
+                              className="rounded border-gray-300 text-primary-600"
+                            />
+                          )}
+                        </th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Date</th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Livraison</th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Type</th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Montant</th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">%</th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Statut</th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody className="bg-white divide-y divide-gray-200">
+                      {mesGains.gains?.map((gain) => (
+                        <tr key={gain.id} className="hover:bg-gray-50">
+                          <td className="px-6 py-4">
+                            {gain.status === 'en_attente' && (
+                              <input
+                                type="checkbox"
+                                checked={selectedGains.includes(gain.id)}
+                                onChange={() => handleSelectGain(gain.id)}
+                                className="rounded border-gray-300 text-primary-600"
+                              />
+                            )}
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm">
+                            {new Date(gain.created_at).toLocaleDateString('fr-FR')}
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
+                            #{gain.livraison_id?.substring(0, 8)}
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <span className={`px-2 py-1 text-xs font-medium rounded-full ${
+                              gain.wilaya_type === 'depart' 
+                                ? 'bg-blue-100 text-blue-800' 
+                                : 'bg-purple-100 text-purple-800'
+                            }`}>
+                              {gain.wilaya_type === 'depart' ? 'Départ' : 'Arrivée'}
+                            </span>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-green-600">
+                            {formatMontant(gain.montant_commission)}
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm">
+                            {gain.pourcentage_applique}%
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <span className={`px-2 py-1 text-xs font-medium rounded-full ${getCouleurStatut(gain.status)}`}>
+                              {traduireStatut(gain.status)}
+                            </span>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            {gain.status === 'en_attente' && (
+                              <button
+                                onClick={() => handleDemanderPaiement(gain.id)}
+                                className="text-sm text-primary-600 hover:text-primary-800"
+                              >
+                                Demander
+                              </button>
+                            )}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+              {/* Modal de confirmation pour demande multiple */}
+              {showDemandeModal && (
+                <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+                  <div className="bg-white rounded-lg p-6 max-w-md w-full">
+                    <h3 className="text-lg font-bold mb-4">Confirmer la demande</h3>
+                    <p className="mb-4">
+                      Vous allez demander le paiement de <span className="font-bold">{selectedGains.length}</span> gain(s) 
+                      pour un total de <span className="font-bold text-green-600">{formatMontant(montantSelectionne)}</span>.
+                    </p>
+                    <p className="text-sm text-gray-500 mb-6">
+                      L'admin sera notifié par email. Vous recevrez une confirmation dès que le paiement sera effectué.
+                    </p>
+                    <div className="flex justify-end gap-2">
+                      <button
+                        onClick={() => setShowDemandeModal(false)}
+                        className="px-4 py-2 bg-gray-300 rounded-lg hover:bg-gray-400"
+                      >
+                        Annuler
+                      </button>
+                      <button
+                        onClick={confirmerDemandeMultiple}
+                        className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700"
+                      >
+                        Confirmer
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </>
+          ) : (
+            <div className="bg-white rounded-lg shadow p-8 text-center text-gray-500">
+              Aucune donnée disponible
+            </div>
+          )}
+        </div>
       )}
     </div>
   );

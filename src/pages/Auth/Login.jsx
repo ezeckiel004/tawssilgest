@@ -74,7 +74,7 @@ const Login = () => {
   const fillDemoCredentials = () => {
     setFormData({
       email: "gestionnaire.alger@example.com",
-      password: "password",
+      password: "password123",
     });
   };
 
@@ -212,7 +212,7 @@ const Login = () => {
           </form>
 
           {/* Informations de démo */}
-          <div className="mt-5 p-3 bg-white/5 rounded-lg border border-white/10">
+          {/* <div className="mt-5 p-3 bg-white/5 rounded-lg border border-white/10">
             <p className="text-xs text-gray-400 mb-2 flex items-center">
               <span className="mr-1">🔐</span> Identifiants de démonstration
             </p>
@@ -235,7 +235,7 @@ const Login = () => {
                 Remplir
               </button>
             </div>
-          </div>
+          </div> */}
 
           {/* Footer - avec année dynamique */}
           <p className="mt-4 text-center text-xs text-gray-500">
