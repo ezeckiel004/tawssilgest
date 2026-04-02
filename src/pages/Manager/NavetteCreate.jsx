@@ -3,7 +3,7 @@ import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { toast } from "react-hot-toast";
 import navetteService from "../../services/manager/navetteService";
-import { formatMontant } from "../../services/manager";
+import { formatMontant, getProfile } from "../../services/manager";
 import api from "../../services/api";
 import {
   FaArrowLeft,
@@ -29,34 +29,9 @@ const NavetteCreate = () => {
   const [hubs, setHubs] = useState([]);
   const [loadingHubs, setLoadingHubs] = useState(false);
   const [loadingLivraisons, setLoadingLivraisons] = useState(false);
-  const [userWilaya, setUserWilaya] = useState("16"); // Valeur par défaut pour le test
-  const [wilayaDepartNom, setWilayaDepartNom] = useState("Alger");
-
-  // Récupérer la wilaya du gestionnaire depuis l'API
-  useEffect(() => {
-    const fetchUserData = async () => {
-      try {
-        const response = await api.get('/manager/profile');
-        const data = response.data;
-        if (data && data.gestionnaire && data.gestionnaire.wilaya_id) {
-          const wilayaId = data.gestionnaire.wilaya_id;
-          setUserWilaya(wilayaId);
-          
-          // Récupérer le nom de la wilaya
-          const wilayaResponse = await api.get('/wilayas');
-          const wilayasList = wilayaResponse.data.data || wilayaResponse.data || [];
-          const wilaya = wilayasList.find(w => w.code === wilayaId);
-          if (wilaya) {
-            setWilayaDepartNom(wilaya.nom);
-          }
-        }
-      } catch (error) {
-        console.error("Erreur récupération wilaya:", error);
-        // Garder les valeurs par défaut
-      }
-    };
-    fetchUserData();
-  }, []);
+  const [userWilaya, setUserWilaya] = useState(null);
+  const [wilayaDepartNom, setWilayaDepartNom] = useState("");
+  const [loadingProfile, setLoadingProfile] = useState(true);
 
   // Liste des wilayas
   const [wilayas] = useState([
@@ -83,7 +58,7 @@ const NavetteCreate = () => {
   ]);
 
   const [formData, setFormData] = useState({
-    wilaya_depart_id: userWilaya,
+    wilaya_depart_id: "",
     wilaya_arrivee_id: "",
     wilayas_transit: [],
     date_depart: new Date().toISOString().split("T")[0],
@@ -102,14 +77,58 @@ const NavetteCreate = () => {
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedTransitWilaya, setSelectedTransitWilaya] = useState("");
 
+  // Récupérer la wilaya du gestionnaire depuis l'API
   useEffect(() => {
-    fetchHubs();
-    fetchLivraisonsDisponibles();
+    const fetchUserData = async () => {
+      try {
+        setLoadingProfile(true);
+        const response = await getProfile();
+        console.log("Réponse profile:", response.data);
+        
+        if (response.data?.success && response.data?.data?.gestionnaire) {
+          const gestionnaire = response.data.data.gestionnaire;
+          const wilayaId = gestionnaire.wilaya_id;
+          
+          console.log("Wilaya ID récupéré:", wilayaId);
+          setUserWilaya(wilayaId);
+          setFormData(prev => ({ ...prev, wilaya_depart_id: wilayaId }));
+          
+          const wilaya = wilayas.find(w => w.code === wilayaId);
+          if (wilaya) {
+            setWilayaDepartNom(wilaya.nom);
+          } else {
+            setWilayaDepartNom(gestionnaire.wilaya_nom || wilayaId);
+          }
+        } else if (response.data?.gestionnaire) {
+          const gestionnaire = response.data.gestionnaire;
+          const wilayaId = gestionnaire.wilaya_id;
+          setUserWilaya(wilayaId);
+          setFormData(prev => ({ ...prev, wilaya_depart_id: wilayaId }));
+          
+          const wilaya = wilayas.find(w => w.code === wilayaId);
+          if (wilaya) {
+            setWilayaDepartNom(wilaya.nom);
+          }
+        } else {
+          console.error("Structure de réponse inattendue:", response.data);
+          toast.error("Impossible de récupérer votre wilaya");
+        }
+      } catch (error) {
+        console.error("Erreur récupération wilaya:", error);
+        toast.error("Impossible de récupérer votre wilaya");
+      } finally {
+        setLoadingProfile(false);
+      }
+    };
+    
+    fetchUserData();
   }, []);
 
-  // Mettre à jour la wilaya de départ quand userWilaya change
   useEffect(() => {
-    setFormData(prev => ({ ...prev, wilaya_depart_id: userWilaya }));
+    if (userWilaya) {
+      fetchHubs();
+      fetchLivraisonsDisponibles();
+    }
   }, [userWilaya]);
 
   const fetchHubs = async () => {
@@ -134,33 +153,16 @@ const NavetteCreate = () => {
       setLoadingLivraisons(true);
       const response = await navetteService.getLivraisonsDisponibles();
       
+      console.log("Réponse API livraisons disponibles:", response);
+      
       let livraisonsData = [];
       if (response.data?.data) livraisonsData = response.data.data;
       else if (response.data) livraisonsData = response.data;
       else if (Array.isArray(response)) livraisonsData = response;
-
-      const formattedLivraisons = livraisonsData.map(livraison => {
-        let prix = 0;
-        if (livraison.prix) {
-          prix = livraison.prix;
-        } else if (livraison.colis?.colis_prix) {
-          prix = livraison.colis.colis_prix;
-        }
-        
-        return {
-          id: livraison.id,
-          reference: livraison.reference || `LIV-${livraison.id?.substring(0, 8) || '0000'}`,
-          client: livraison.client || 'Client inconnu',
-          destination: livraison.destination || 'Non spécifiée',
-          wilaya_depart: livraison.wilaya_depart || 'Non spécifiée',
-          wilaya_arrivee: livraison.wilaya_arrivee || 'Non spécifiée',
-          colis_label: livraison.colis_label || 'N/A',
-          poids: livraison.poids || 0,
-          prix: prix,
-        };
-      });
-
-      setLivraisonsDisponibles(formattedLivraisons);
+      
+      console.log("Livraisons disponibles trouvées:", livraisonsData.length);
+      
+      setLivraisonsDisponibles(livraisonsData);
     } catch (error) {
       console.error("Erreur chargement livraisons:", error);
       toast.error("Impossible de charger les livraisons disponibles");
@@ -279,8 +281,8 @@ const NavetteCreate = () => {
 
   const filteredLivraisons = livraisonsDisponibles.filter(
     (livraison) =>
-      livraison.reference.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      livraison.client.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      livraison.reference?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      livraison.client?.toLowerCase().includes(searchTerm.toLowerCase()) ||
       (livraison.destination && livraison.destination.toLowerCase().includes(searchTerm.toLowerCase()))
   );
 
@@ -291,7 +293,6 @@ const NavetteCreate = () => {
     return wilaya ? `${wilaya.code} - ${wilaya.nom}` : code;
   };
 
-  // Calculer le nombre d'acteurs et la part équitable
   const getNbActeurs = () => {
     const acteurs = new Set();
     
@@ -316,6 +317,34 @@ const NavetteCreate = () => {
 
   const nbActeurs = getNbActeurs();
   const partEquitable = nbActeurs > 0 ? (100 / nbActeurs).toFixed(2) : 0;
+
+  if (loadingProfile) {
+    return (
+      <div className="flex justify-center items-center h-64">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600"></div>
+      </div>
+    );
+  }
+
+  if (!userWilaya) {
+    return (
+      <div className="container mx-auto px-4 py-8">
+        <div className="bg-red-50 border border-red-200 rounded-lg p-6 text-center">
+          <FaMapMarkerAlt className="w-12 h-12 text-red-600 mx-auto mb-3" />
+          <h2 className="text-xl font-bold text-gray-900 mb-2">Impossible de charger votre wilaya</h2>
+          <p className="text-gray-600 mb-4">
+            Nous n'avons pas pu récupérer votre wilaya de gestion. Veuillez vérifier votre profil.
+          </p>
+          <button
+            onClick={() => navigate("/manager/profile")}
+            className="px-6 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700"
+          >
+            Voir mon profil
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="container mx-auto px-4 py-8">
@@ -345,7 +374,7 @@ const NavetteCreate = () => {
                   <label className="block text-sm font-medium text-gray-700 mb-2">
                     Wilaya de départ *
                   </label>
-                  <div className="w-full px-4 py-2 border border-gray-300 rounded-lg bg-gray-100 text-gray-700">
+                  <div className="w-full px-4 py-2 border border-gray-300 rounded-lg bg-green-50 text-gray-700 font-medium">
                     {userWilaya} - {wilayaDepartNom}
                   </div>
                   <p className="text-xs text-gray-500 mt-1">
@@ -822,7 +851,7 @@ const NavetteCreate = () => {
                       ) : (
                         <>
                           <FaBoxes className="mx-auto text-4xl mb-2 text-gray-300" />
-                          <p>Aucune livraison disponible</p>
+                          <p>Aucune livraison disponible dans votre wilaya</p>
                         </>
                       )}
                     </div>

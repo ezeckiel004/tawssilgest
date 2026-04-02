@@ -4,7 +4,6 @@ import { useParams, useNavigate } from "react-router-dom";
 import { toast } from "react-hot-toast";
 import navetteService from "../../services/manager/navetteService";
 import { formatMontant, formatDate } from "../../services/manager";
-import api from "../../services/api";
 import {
   FaArrowLeft,
   FaArrowRight,
@@ -19,13 +18,10 @@ import {
   FaPlay,
   FaStop,
   FaBan,
-  FaTruck,
+  FaEdit,
   FaMoneyBillWave,
   FaUsers,
   FaUserTie,
-  FaRoad,
-  FaGasPump,
-  FaEye,
 } from "react-icons/fa";
 
 const NavetteDetail = () => {
@@ -43,7 +39,7 @@ const NavetteDetail = () => {
     try {
       setLoading(true);
       const response = await navetteService.getNavetteById(id);
-      const navetteData = response.data;
+      const navetteData = response.data?.data || response.data || response;
       
       // Calculer le total des gains à partir des gains existants
       let total = 0;
@@ -140,12 +136,23 @@ const NavetteDetail = () => {
 
   return (
     <div className="container mx-auto px-4 py-8">
-      <button
-        onClick={() => navigate("/navettes")}
-        className="flex items-center gap-2 text-primary-600 hover:text-primary-800 mb-4"
-      >
-        <FaArrowLeft /> Retour aux navettes
-      </button>
+      <div className="flex justify-between items-center mb-4">
+        <button
+          onClick={() => navigate("/navettes")}
+          className="flex items-center gap-2 text-primary-600 hover:text-primary-800"
+        >
+          <FaArrowLeft /> Retour aux navettes
+        </button>
+        {/* Bouton Modifier - visible pour planifiée ET en_cours */}
+        {["planifiee", "en_cours"].includes(navette.status) && (
+          <button
+            onClick={() => navigate(`/navettes/${id}/edit`)}
+            className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+          >
+            <FaEdit /> Modifier la navette
+          </button>
+        )}
+      </div>
 
       <div className="flex justify-between items-start mb-6">
         <div>
@@ -304,7 +311,7 @@ const NavetteDetail = () => {
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Statut
                 </th>
-               </tr>
+              </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
               {navette.livraisons?.length > 0 ? (

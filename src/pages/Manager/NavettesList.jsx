@@ -6,7 +6,6 @@ import navetteService from "../../services/manager/navetteService";
 import { formatDate } from "../../services/manager";
 import {
   FaPlus,
-  FaTruck,
   FaMapMarkerAlt,
   FaCalendarAlt,
   FaBoxes,
@@ -19,6 +18,7 @@ import {
   FaSpinner,
   FaArrowRight,
   FaEye,
+  FaEdit,
   FaTrash,
   FaPlay,
   FaStop,
@@ -361,7 +361,7 @@ const NavettesList = () => {
                                 {Math.round(taux)}%
                               </span>
                             </div>
-                           </td>
+                          </td>
                           <td className="px-6 py-4 whitespace-nowrap">
                             <div className="flex gap-2">
                               <button
@@ -371,6 +371,16 @@ const NavettesList = () => {
                               >
                                 <FaEye />
                               </button>
+                              {/* Bouton Modifier - visible pour planifiée ET en_cours */}
+                              {["planifiee", "en_cours"].includes(navette.status) && (
+                                <button
+                                  onClick={() => navigate(`/navettes/${navette.id}/edit`)}
+                                  className="text-blue-600 hover:text-blue-900"
+                                  title="Modifier"
+                                >
+                                  <FaEdit />
+                                </button>
+                              )}
                               {navette.status === "planifiee" && (
                                 <>
                                   <button
@@ -418,8 +428,8 @@ const NavettesList = () => {
                                 </button>
                               )}
                             </div>
-                           </td>
-                         </tr>
+                          </td>
+                        </tr>
                       );
                     })
                   )}

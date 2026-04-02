@@ -14,11 +14,13 @@ import CodesPromoList from "./pages/CodesPromo/CodesPromoList";
 import CodePromoForm from "./pages/CodesPromo/CodePromoForm";
 import CodePromoDetails from "./pages/CodesPromo/CodePromoDetails";
 import Profile from "./pages/Profile/Profile";
-import Comptabilite from "./pages/Manager/Comptabilite"; // Import du composant comptabilité
+import Comptabilite from "./pages/Manager/Comptabilite";
 import LoadingSpinner from "./components/Common/LoadingSpinner";
 import NavettesList from "./pages/Manager/NavettesList";
 import NavetteCreate from "./pages/Manager/NavetteCreate";
 import NavetteDetail from "./pages/Manager/NavetteDetail";
+import NavetteEdit from "./pages/Manager/NavetteEdit"; // ← AJOUTER CET IMPORT
+import CashDelivery from "./pages/Manager/CashDelivery";
 
 // Composant pour les routes privées (vérifie l'authentification et le rôle manager)
 const PrivateRoute = ({ children }) => {
@@ -134,14 +136,18 @@ function App() {
               <Route path=":id/edit" element={<CodePromoForm />} />
             </Route>
 
+            {/* Gestion des navettes */}
             <Route path="navettes">
               <Route index element={<NavettesList />} />
               <Route path="create" element={<NavetteCreate />} />
               <Route path=":id" element={<NavetteDetail />} />
+              <Route path=":id/edit" element={<NavetteEdit />} /> {/* ← AJOUTER CETTE ROUTE */}
             </Route>
 
             {/* NOUVELLE ROUTE - Comptabilité */}
             <Route path="comptabilite" element={<Comptabilite />} />
+
+            <Route path="cash-delivery" element={<CashDelivery />} />
 
             {/* Profil utilisateur */}
             <Route path="profile" element={<Profile />} />

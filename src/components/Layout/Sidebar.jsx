@@ -11,6 +11,7 @@ import {
 } from "@heroicons/react/24/outline";
 import { useAuth } from "../../context/AuthContext";
 import { CubeIcon } from "@heroicons/react/24/outline";
+import { CurrencyDollarIcon } from "@heroicons/react/24/outline";
 
 // Table de correspondance des wilayas
 const WILAYAS = {
@@ -88,6 +89,7 @@ const Sidebar = ({ sidebarOpen, setSidebarOpen }) => {
     { name: "Codes Promo", href: "/codes-promo", icon: TagIcon },
     { name: "Navettes", href: "/navettes", icon: CubeIcon }, // NOUVEAU
     { name: "Comptabilité", href: "/comptabilite", icon: ChartBarIcon },
+    { name: "Cash On Delivery", href: "/cash-delivery", icon: CurrencyDollarIcon },
     { name: "Profil", href: "/profile", icon: UserCircleIcon },
   ];
 

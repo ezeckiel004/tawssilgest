@@ -1,5 +1,8 @@
 // src/services/manager.js
+// ==================== PROJET MANAGER ====================
+
 import api from './api';
+import navetteGainService from './manager/navetteGainService';
 
 // ==================== FONCTIONS UTILITAIRES ====================
 
@@ -182,13 +185,25 @@ export const updateLivraisonStatus = (id, status) =>
 // ==================== LIVREURS ====================
 
 /**
- * Récupérer la liste des livreurs
+ * Récupérer la liste des livreurs (natifs + assignés)
  */
 export const getLivreurs = () => 
   api.get('/manager/livreurs');
 
 /**
- * Récupérer un livreur par son ID
+ * Récupérer les livreurs natifs uniquement
+ */
+export const getLivreursNatifs = () => 
+  api.get('/manager/livreurs?origine=natif');
+
+/**
+ * Récupérer les livreurs assignés uniquement
+ */
+export const getLivreursAssignes = () => 
+  api.get('/manager/livreurs?origine=assigne');
+
+/**
+ * Récupérer un livreur par son ID avec son origine
  * @param {string} id - ID du livreur
  */
 export const getLivreurById = (id) => 
@@ -287,10 +302,13 @@ export const updateProfile = (data) =>
 export const changePassword = (data) => 
   api.post('/manager/profile/change-password', data);
 
-// ==================== GAINS DU GESTIONNAIRE ====================
+// ==================== GAINS LIVRAISONS ====================
+// Ces fonctions concernent les commissions sur les livraisons individuelles
+// Table: gestionnaire_gains
+// Controller: GainController.php
 
 /**
- * Récupérer tous les gains du gestionnaire connecté
+ * Récupérer tous les gains du gestionnaire connecté (livraisons)
  * @param {Object} params - { periode, date, date_debut, date_fin }
  * @returns {Promise}
  */
@@ -305,7 +323,7 @@ export const getMesGains = async (params = {}) => {
 };
 
 /**
- * Récupérer uniquement les gains en attente
+ * Récupérer uniquement les gains en attente (livraisons)
  * @returns {Promise}
  */
 export const getGainsEnAttente = async () => {
@@ -319,7 +337,7 @@ export const getGainsEnAttente = async () => {
 };
 
 /**
- * Demander le paiement d'un gain spécifique
+ * Demander le paiement d'un gain spécifique (livraison)
  * @param {string} gainId - ID du gain
  * @returns {Promise}
  */
@@ -334,7 +352,7 @@ export const demanderPaiementGain = async (gainId) => {
 };
 
 /**
- * Demander le paiement de plusieurs gains
+ * Demander le paiement de plusieurs gains (livraisons)
  * @param {Array} gainIds - Liste des IDs des gains
  * @returns {Promise}
  */
@@ -351,7 +369,7 @@ export const demanderPaiementMultiple = async (gainIds) => {
 };
 
 /**
- * Récupérer les statistiques des gains
+ * Récupérer les statistiques des gains (livraisons)
  * @returns {Promise}
  */
 export const getStatistiquesGains = async () => {
@@ -360,6 +378,86 @@ export const getStatistiquesGains = async () => {
     return response.data;
   } catch (error) {
     console.error('❌ Erreur getStatistiquesGains:', error);
+    throw error;
+  }
+};
+
+// ==================== GAINS NAVETTES ====================
+// Ces fonctions concernent les commissions sur les navettes
+// Table: gestionnaire_navette_gains
+// Controller: GestionnaireNavetteGainController.php
+
+/**
+ * Récupérer tous les gains navettes du gestionnaire connecté
+ * @param {Object} params - { periode, date_debut, date_fin }
+ * @returns {Promise}
+ */
+export const getMesGainsNavette = async (params = {}) => {
+  try {
+    const response = await api.get('/manager/gains-navette', { params });
+    return response.data;
+  } catch (error) {
+    console.error('❌ Erreur getMesGainsNavette:', error);
+    throw error;
+  }
+};
+
+/**
+ * Récupérer uniquement les gains navettes en attente
+ * @returns {Promise}
+ */
+export const getGainsNavetteEnAttente = async () => {
+  try {
+    const response = await api.get('/manager/gains-navette/en-attente');
+    return response.data;
+  } catch (error) {
+    console.error('❌ Erreur getGainsNavetteEnAttente:', error);
+    throw error;
+  }
+};
+
+/**
+ * Demander le paiement d'un gain navette spécifique
+ * @param {string} gainId - ID du gain navette
+ * @returns {Promise}
+ */
+export const demanderPaiementNavette = async (gainId) => {
+  try {
+    const response = await api.post(`/manager/gains-navette/demander/${gainId}`);
+    return response.data;
+  } catch (error) {
+    console.error('❌ Erreur demanderPaiementNavette:', error);
+    throw error;
+  }
+};
+
+/**
+ * Demander le paiement de plusieurs gains navette
+ * @param {Array} gainIds - Liste des IDs des gains navette
+ * @returns {Promise}
+ */
+export const demanderPaiementMultipleNavette = async (gainIds) => {
+  try {
+    const response = await api.post('/manager/gains-navette/demander-multiple', { 
+      gain_ids: gainIds 
+    });
+    return response.data;
+  } catch (error) {
+    console.error('❌ Erreur demanderPaiementMultipleNavette:', error);
+    throw error;
+  }
+};
+
+/**
+ * Récupérer les statistiques des gains navette
+ * @returns {Promise}
+ */
+export const getStatistiquesGainsNavette = async () => {
+  try {
+    const response = await api.get('/manager/gains-navette/statistiques');
+    return response.data;
+  } catch (error) {
+    console.error('❌ Erreur getStatistiquesGainsNavette:', error);
     throw error;
   }
 };
@@ -430,6 +528,211 @@ export const exportBilan = async (params = {}) => {
     console.error('❌ Erreur exportBilan:', error);
     throw error;
   }
+};
+
+// ==================== NAVETTES ====================
+
+/**
+ * Récupérer la liste des navettes
+ */
+export const getNavettes = () => 
+  api.get('/manager/navettes');
+
+/**
+ * Récupérer une navette par son ID
+ * @param {string} id - ID de la navette
+ */
+export const getNavetteById = (id) => 
+  api.get(`/manager/navettes/${id}`);
+
+/**
+ * Créer une navette
+ * @param {Object} data - Données de la navette
+ */
+export const createNavette = (data) => 
+  api.post('/manager/navettes', data);
+
+/**
+ * Démarrer une navette
+ * @param {string} id - ID de la navette
+ */
+export const demarrerNavette = (id) => 
+  api.post(`/manager/navettes/${id}/demarrer`);
+
+/**
+ * Terminer une navette
+ * @param {string} id - ID de la navette
+ */
+export const terminerNavette = (id) => 
+  api.post(`/manager/navettes/${id}/terminer`);
+
+/**
+ * Annuler une navette
+ * @param {string} id - ID de la navette
+ */
+export const annulerNavette = (id) => 
+  api.post(`/manager/navettes/${id}/annuler`);
+
+/**
+ * Récupérer les livraisons disponibles pour une navette
+ */
+export const getLivraisonsDisponibles = () => 
+  api.get('/manager/navettes/disponibles');
+
+// ==================== HUBS ====================
+
+/**
+ * Récupérer la liste des hubs
+ */
+export const getHubs = () => 
+  api.get('/manager/hubs');
+
+// ==================== CASH ON DELIVERY (COD) ====================
+
+/**
+ * Récupérer la liste des gestionnaires disponibles (sauf soi-même)
+ * @returns {Promise}
+ */
+export const getGestionnairesDisponibles = async () => {
+  try {
+    const response = await api.get('/manager/cash-delivery/gestionnaires');
+    return response.data;
+  } catch (error) {
+    console.error('❌ Erreur getGestionnairesDisponibles:', error);
+    throw error;
+  }
+};
+
+/**
+ * Envoyer une demande COD
+ * @param {Object} data - { destinataire_id, montant, motif }
+ * @returns {Promise}
+ */
+export const envoyerDemandeCOD = async (data) => {
+  try {
+    const response = await api.post('/manager/cash-delivery/envoyer', data);
+    return response.data;
+  } catch (error) {
+    console.error('❌ Erreur envoyerDemandeCOD:', error);
+    throw error;
+  }
+};
+
+/**
+ * Accepter une demande COD reçue
+ * @param {string} id - ID de la demande
+ * @returns {Promise}
+ */
+export const accepterDemandeCOD = async (id) => {
+  try {
+    const response = await api.post(`/manager/cash-delivery/${id}/accepter`);
+    return response.data;
+  } catch (error) {
+    console.error('❌ Erreur accepterDemandeCOD:', error);
+    throw error;
+  }
+};
+
+/**
+ * Refuser une demande COD reçue
+ * @param {string} id - ID de la demande
+ * @returns {Promise}
+ */
+export const refuserDemandeCOD = async (id) => {
+  try {
+    const response = await api.post(`/manager/cash-delivery/${id}/refuser`);
+    return response.data;
+  } catch (error) {
+    console.error('❌ Erreur refuserDemandeCOD:', error);
+    throw error;
+  }
+};
+
+/**
+ * Annuler une demande COD envoyée
+ * @param {string} id - ID de la demande
+ * @returns {Promise}
+ */
+export const annulerDemandeCOD = async (id) => {
+  try {
+    const response = await api.post(`/manager/cash-delivery/${id}/annuler`);
+    return response.data;
+  } catch (error) {
+    console.error('❌ Erreur annulerDemandeCOD:', error);
+    throw error;
+  }
+};
+
+/**
+ * Récupérer les demandes envoyées par le gestionnaire connecté
+ * @returns {Promise}
+ */
+export const getDemandesEnvoyeesCOD = async () => {
+  try {
+    const response = await api.get('/manager/cash-delivery/envoyees');
+    return response.data;
+  } catch (error) {
+    console.error('❌ Erreur getDemandesEnvoyeesCOD:', error);
+    throw error;
+  }
+};
+
+/**
+ * Récupérer les demandes reçues par le gestionnaire connecté
+ * @returns {Promise}
+ */
+export const getDemandesRecuesCOD = async () => {
+  try {
+    const response = await api.get('/manager/cash-delivery/recues');
+    return response.data;
+  } catch (error) {
+    console.error('❌ Erreur getDemandesRecuesCOD:', error);
+    throw error;
+  }
+};
+
+/**
+ * Récupérer les statistiques COD
+ * @returns {Promise}
+ */
+export const getStatistiquesCOD = async () => {
+  try {
+    const response = await api.get('/manager/cash-delivery/statistiques');
+    return response.data;
+  } catch (error) {
+    console.error('❌ Erreur getStatistiquesCOD:', error);
+    throw error;
+  }
+};
+
+/**
+ * Traduire le statut COD en français
+ * @param {string} statut
+ * @returns {string}
+ */
+export const traduireStatutCOD = (statut) => {
+  const traductions = {
+    'en_attente': 'En attente',
+    'accepte': 'Accepté',
+    'refuse': 'Refusé',
+    'annule': 'Annulé'
+  };
+  return traductions[statut] || statut;
+};
+
+/**
+ * Obtenir la couleur CSS pour un statut COD
+ * @param {string} statut
+ * @returns {string}
+ */
+export const getCouleurStatutCOD = (statut) => {
+  const couleurs = {
+    'en_attente': 'bg-yellow-100 text-yellow-800',
+    'accepte': 'bg-green-100 text-green-800',
+    'refuse': 'bg-red-100 text-red-800',
+    'annule': 'bg-gray-100 text-gray-800'
+  };
+  return couleurs[statut] || 'bg-gray-100 text-gray-800';
 };
 
 // Export de l'API pour les cas où on a besoin de l'instance directement

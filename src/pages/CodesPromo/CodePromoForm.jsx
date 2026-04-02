@@ -8,6 +8,7 @@ import {
   createCodePromo,
   getCodePromoById,
   updateCodePromo,
+  getLivreurs,
 } from "../../services/manager";
 import LoadingSpinner from "../../components/Common/LoadingSpinner";
 import ErrorAlert from "../../components/Common/ErrorAlert";
@@ -35,24 +36,11 @@ const schema = yup.object({
     .number()
     .nullable()
     .transform((value, originalValue) => {
-      // Transformer les chaînes vides en null
       return originalValue === "" ? null : value;
     })
     .positive("Doit être positif")
     .integer("Doit être un nombre entier"),
-  date_debut: yup.string().nullable(),
-  date_fin: yup
-    .string()
-    .nullable()
-    .test(
-      "is-after-start",
-      "La date de fin doit être après la date de début",
-      function (value) {
-        const { date_debut } = this.parent;
-        if (!date_debut || !value) return true;
-        return new Date(value) > new Date(date_debut);
-      },
-    ),
+  livreurs: yup.array().nullable(),
   status: yup.string().oneOf(["actif", "inactif", "expire"]).default("actif"),
 });
 
@@ -62,6 +50,8 @@ const CodePromoForm = () => {
   const [loading, setLoading] = useState(false);
   const [fetchLoading, setFetchLoading] = useState(!!id);
   const [error, setError] = useState(null);
+  const [livreurs, setLivreurs] = useState([]);
+  const [loadingLivreurs, setLoadingLivreurs] = useState(false);
   const isEditing = !!id;
 
   const {
@@ -70,6 +60,7 @@ const CodePromoForm = () => {
     formState: { errors },
     watch,
     setValue,
+    setError: setFormError,
   } = useForm({
     resolver: yupResolver(schema),
     defaultValues: {
@@ -77,16 +68,45 @@ const CodePromoForm = () => {
       status: "actif",
       min_commande: null,
       max_utilisations: null,
+      livreurs: [],
     },
   });
 
   const watchType = watch("type");
 
   useEffect(() => {
+    fetchLivreurs();
     if (isEditing) {
       fetchCodePromo();
     }
   }, [id]);
+
+  const fetchLivreurs = async () => {
+    setLoadingLivreurs(true);
+    try {
+      const response = await getLivreurs();
+      console.log("Livreurs reçus:", response.data);
+
+      // Adapter selon la structure de votre API
+      let livreursData = [];
+      if (response.data?.success && response.data?.data) {
+        if (Array.isArray(response.data.data)) {
+          livreursData = response.data.data;
+        } else if (response.data.data.data && Array.isArray(response.data.data.data)) {
+          livreursData = response.data.data.data;
+        }
+      } else if (Array.isArray(response.data)) {
+        livreursData = response.data;
+      }
+
+      setLivreurs(livreursData);
+    } catch (err) {
+      console.error("Erreur chargement livreurs:", err);
+      toast.error("Impossible de charger la liste des livreurs");
+    } finally {
+      setLoadingLivreurs(false);
+    }
+  };
 
   const fetchCodePromo = async () => {
     try {
@@ -96,7 +116,13 @@ const CodePromoForm = () => {
       // Remplir le formulaire
       Object.keys(data).forEach((key) => {
         if (data[key] !== null && data[key] !== undefined) {
-          setValue(key, data[key]);
+          // Pour les livreurs, extraire les IDs
+          if (key === "livreurs" && Array.isArray(data[key])) {
+            const livreurIds = data[key].map(l => l.id);
+            setValue(key, livreurIds);
+          } else {
+            setValue(key, data[key]);
+          }
         }
       });
     } catch (err) {
@@ -288,47 +314,60 @@ const CodePromoForm = () => {
               </div>
             </div>
 
-            {/* Dates */}
-            <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
-              <div>
-                <label
-                  htmlFor="date_debut"
-                  className="block text-sm font-medium text-gray-700"
-                >
-                  Date de début
-                </label>
-                <input
-                  type="date"
-                  id="date_debut"
-                  {...register("date_debut")}
-                  className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary-500 focus:ring-primary-500 sm:text-sm"
-                />
-                {errors.date_debut && (
-                  <p className="mt-1 text-sm text-red-600">
-                    {errors.date_debut.message}
-                  </p>
-                )}
-              </div>
-
-              <div>
-                <label
-                  htmlFor="date_fin"
-                  className="block text-sm font-medium text-gray-700"
-                >
-                  Date de fin
-                </label>
-                <input
-                  type="date"
-                  id="date_fin"
-                  {...register("date_fin")}
-                  className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary-500 focus:ring-primary-500 sm:text-sm"
-                />
-                {errors.date_fin && (
-                  <p className="mt-1 text-sm text-red-600">
-                    {errors.date_fin.message}
-                  </p>
-                )}
-              </div>
+            {/* Sélection des livreurs */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Livreurs concernés
+              </label>
+              {loadingLivreurs ? (
+                <div className="flex justify-center py-4">
+                  <LoadingSpinner />
+                </div>
+              ) : livreurs.length === 0 ? (
+                <p className="text-sm text-gray-500 italic">
+                  Aucun livreur disponible dans votre wilaya
+                </p>
+              ) : (
+                <div className="border border-gray-300 rounded-md p-4 max-h-60 overflow-y-auto">
+                  <div className="space-y-2">
+                    {livreurs.map((livreur) => (
+                      <label
+                        key={livreur.id}
+                        className="flex items-center space-x-3 cursor-pointer hover:bg-gray-50 p-2 rounded"
+                      >
+                        <input
+                          type="checkbox"
+                          value={livreur.id}
+                          {...register("livreurs")}
+                          className="h-4 w-4 text-primary-600 focus:ring-primary-500 border-gray-300 rounded"
+                        />
+                        <div className="flex-1">
+                          <p className="text-sm font-medium text-gray-900">
+                            {livreur.user?.prenom} {livreur.user?.nom}
+                          </p>
+                          <p className="text-xs text-gray-500">
+                            {livreur.user?.email} | Tél: {livreur.user?.telephone || "Non renseigné"}
+                          </p>
+                        </div>
+                        {livreur.desactiver === true && (
+                          <span className="inline-flex items-center rounded-full bg-red-100 px-2 py-0.5 text-xs font-medium text-red-800">
+                            Inactif
+                          </span>
+                        )}
+                      </label>
+                    ))}
+                  </div>
+                </div>
+              )}
+              {errors.livreurs && (
+                <p className="mt-1 text-sm text-red-600">
+                  {errors.livreurs.message}
+                </p>
+              )}
+              <p className="mt-2 text-xs text-gray-500">
+                Sélectionnez les livreurs qui pourront utiliser ce code promo.
+                Laissez vide pour rendre le code accessible à tous les livreurs.
+              </p>
             </div>
 
             {/* Statut */}
@@ -372,8 +411,8 @@ const CodePromoForm = () => {
                 {loading
                   ? "Enregistrement..."
                   : isEditing
-                    ? "Modifier"
-                    : "Créer"}
+                  ? "Modifier"
+                  : "Créer"}
               </button>
             </div>
           </form>
