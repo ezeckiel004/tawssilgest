@@ -1,3 +1,5 @@
+// src/pages/Livraisons/LivraisonDetails.jsx
+
 import React, { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import {
@@ -7,6 +9,7 @@ import {
   PhoneIcon,
   EnvelopeIcon,
   UserIcon,
+  UserPlusIcon,
 } from "@heroicons/react/24/outline";
 import {
   getLivraisonById,
@@ -15,6 +18,7 @@ import {
 import LoadingSpinner from "../../components/Common/LoadingSpinner";
 import ErrorAlert from "../../components/Common/ErrorAlert";
 import UpdateStatusModal from "./UpdateStatusModal";
+import AssignLivreurModal from "../../components/Livraisons/AssignLivreurModal";
 import {
   formatDate,
   getStatusLabel,
@@ -30,6 +34,8 @@ const LivraisonDetails = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [isStatusModalOpen, setIsStatusModalOpen] = useState(false);
+  const [isAssignModalOpen, setIsAssignModalOpen] = useState(false);
+  const [assignType, setAssignType] = useState(null);
 
   useEffect(() => {
     fetchLivraison();
@@ -59,6 +65,30 @@ const LivraisonDetails = () => {
     }
   };
 
+  const handleAssignSuccess = (updatedLivraison) => {
+    fetchLivraison();
+  };
+
+  const openAssignModal = (type) => {
+    setAssignType(type);
+    setIsAssignModalOpen(true);
+  };
+
+  // Verifier si le gestionnaire peut assigner un livreur selon le statut
+  const canAssignLivreur = (status, type) => {
+    if (type === "distributeur") {
+      return status === "en_transit";
+    } else if (type === "ramasseur") {
+      return !["ramasse", "livre", "annule"].includes(status);
+    }
+    return false;
+  };
+
+  // Verifier si au moins un type est disponible
+  const hasAssignableType = (status) => {
+    return canAssignLivreur(status, "ramasseur") || canAssignLivreur(status, "distributeur");
+  };
+
   if (loading) return <LoadingSpinner />;
   if (error) return <ErrorAlert message={error} />;
   if (!livraison) return null;
@@ -81,29 +111,117 @@ const LivraisonDetails = () => {
       </button>
 
       <div className="bg-white shadow overflow-hidden sm:rounded-lg">
-        {/* En-tête */}
+        {/* En-tete */}
         <div className="px-4 py-5 sm:px-6 flex justify-between items-center">
           <div>
             <h3 className="text-lg leading-6 font-medium text-gray-900">
               Livraison #{livraison.code_pin}
             </h3>
             <p className="mt-1 max-w-2xl text-sm text-gray-500">
-              Créée le {formatDate(livraison.created_at)}
+              Créee le {formatDate(livraison.created_at)}
             </p>
           </div>
           <div className="flex items-center space-x-4">
             <span className={getStatusBadgeClass(livraison.status)}>
               {getStatusLabel(livraison.status)}
             </span>
-            {/* <button
+            
+            {/* Bouton Changer statut */}
+            <button
               onClick={() => setIsStatusModalOpen(true)}
               className="inline-flex items-center px-3 py-2 border border-gray-300 shadow-sm text-sm leading-4 font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
             >
               <PencilIcon className="h-4 w-4 mr-2" />
               Changer statut
-            </button> */}
+            </button>
+
+            {/* NOUVEAU BOUTON : Attribuer un livreur */}
+            {hasAssignableType(livraison.status) && (
+              <button
+                onClick={() => openAssignModal(null)}
+                className="inline-flex items-center px-3 py-2 text-sm font-medium text-white bg-indigo-600 border border-transparent rounded-md shadow-sm hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+              >
+                <UserPlusIcon className="h-4 w-4 mr-2" />
+                Attribuer un livreur
+              </button>
+            )}
           </div>
         </div>
+
+        {/* Section Attribution livreurs - Version Manager */}
+        {hasAssignableType(livraison.status) && (
+          <div className="border-t border-gray-200 px-4 py-5 sm:px-6 bg-gray-50">
+            <h3 className="text-md font-medium text-gray-900 mb-4 flex items-center gap-2">
+              <UserPlusIcon className="h-5 w-5 text-indigo-600" />
+              Attribution des livreurs
+            </h3>
+
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+              {/* Livreur ramasseur */}
+              <div className="p-4 rounded-lg bg-blue-50">
+                <div className="flex items-center justify-between mb-3">
+                  <div>
+                    <p className="font-medium text-gray-900">Livreur Ramasseur</p>
+                    <p className="text-sm text-gray-600">
+                      {livreurRamasseur
+                        ? `${livreurRamasseur.prenom || ''} ${livreurRamasseur.nom || ''}`.trim()
+                        : "Non attribué"}
+                    </p>
+                    {livreurRamasseur?.telephone && (
+                      <p className="text-xs text-gray-500 mt-1 flex items-center">
+                        <PhoneIcon className="w-3 h-3 mr-1" />
+                        {livreurRamasseur.telephone}
+                      </p>
+                    )}
+                  </div>
+                  {canAssignLivreur(livraison.status, "ramasseur") && (
+                    <button
+                      onClick={() => openAssignModal("ramasseur")}
+                      className="px-3 py-1 text-sm text-blue-600 bg-blue-100 rounded hover:bg-blue-200"
+                    >
+                      {livreurRamasseur ? "Changer" : "Attribuer"}
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              {/* Livreur distributeur */}
+              <div className="p-4 rounded-lg bg-green-50">
+                <div className="flex items-center justify-between mb-3">
+                  <div>
+                    <p className="font-medium text-gray-900">Livreur Distributeur</p>
+                    <p className="text-sm text-gray-600">
+                      {livreurDistributeur
+                        ? `${livreurDistributeur.prenom || ''} ${livreurDistributeur.nom || ''}`.trim()
+                        : "Non attribué"}
+                    </p>
+                    {livreurDistributeur?.telephone && (
+                      <p className="text-xs text-gray-500 mt-1 flex items-center">
+                        <PhoneIcon className="w-3 h-3 mr-1" />
+                        {livreurDistributeur.telephone}
+                      </p>
+                    )}
+                  </div>
+                  {canAssignLivreur(livraison.status, "distributeur") && (
+                    <button
+                      onClick={() => openAssignModal("distributeur")}
+                      className="px-3 py-1 text-sm text-green-600 bg-green-100 rounded hover:bg-green-200"
+                    >
+                      {livreurDistributeur ? "Changer" : "Attribuer"}
+                    </button>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            {/* Info sur les livreurs disponibles */}
+            <div className="p-3 mt-4 text-sm bg-gray-100 rounded-lg">
+              <p className="text-gray-600">
+                Les livreurs disponibles sont ceux de votre wilaya ainsi que ceux qui vous ont été assignés par l'administrateur.
+              </p>
+            </div>
+          </div>
+        )}
 
         {/* Informations */}
         <div className="border-t border-gray-200 px-4 py-5 sm:px-6">
@@ -154,11 +272,11 @@ const LivraisonDetails = () => {
               </dd>
             </div>
 
-            {/* Adresse de dépôt */}
+            {/* Adresse de depot */}
             <div className="sm:col-span-1">
               <dt className="text-sm font-medium text-gray-500 flex items-center">
                 <MapPinIcon className="h-4 w-4 mr-1" />
-                Adresse de dépôt
+                Adresse de depot
               </dt>
               <dd className="mt-1 text-sm text-gray-900">
                 <p>{demande?.addresse_depot}</p>
@@ -188,8 +306,7 @@ const LivraisonDetails = () => {
                   demande?.lng_delivery &&
                   demande?.lat_delivery != 0 && (
                     <p className="text-xs text-gray-400 mt-1">
-                      Coordonnées: {demande.lat_delivery},{" "}
-                      {demande.lng_delivery}
+                      Coordonnées: {demande.lat_delivery}, {demande.lng_delivery}
                     </p>
                   )}
               </dd>
@@ -240,47 +357,6 @@ const LivraisonDetails = () => {
                     </div>
                   )}
                 </div>
-              </dd>
-            </div>
-
-            {/* Livreurs */}
-            <div className="sm:col-span-1">
-              <dt className="text-sm font-medium text-gray-500">
-                Livreur ramasseur
-              </dt>
-              <dd className="mt-1 text-sm text-gray-900">
-                {livreurRamasseur ? (
-                  <>
-                    <p>
-                      {livreurRamasseur.prenom} {livreurRamasseur.nom}
-                    </p>
-                    <p className="text-xs text-gray-500">
-                      {livreurRamasseur.telephone}
-                    </p>
-                  </>
-                ) : (
-                  <span className="text-gray-400">Non assigné</span>
-                )}
-              </dd>
-            </div>
-
-            <div className="sm:col-span-1">
-              <dt className="text-sm font-medium text-gray-500">
-                Livreur distributeur
-              </dt>
-              <dd className="mt-1 text-sm text-gray-900">
-                {livreurDistributeur ? (
-                  <>
-                    <p>
-                      {livreurDistributeur.prenom} {livreurDistributeur.nom}
-                    </p>
-                    <p className="text-xs text-gray-500">
-                      {livreurDistributeur.telephone}
-                    </p>
-                  </>
-                ) : (
-                  <span className="text-gray-400">Non assigné</span>
-                )}
               </dd>
             </div>
 
@@ -358,6 +434,19 @@ const LivraisonDetails = () => {
         onClose={() => setIsStatusModalOpen(false)}
         currentStatus={livraison.status}
         onUpdate={handleStatusUpdate}
+      />
+
+      {/* Modal d'assignation des livreurs */}
+      <AssignLivreurModal
+        isOpen={isAssignModalOpen}
+        onClose={() => {
+          setIsAssignModalOpen(false);
+          setAssignType(null);
+        }}
+        livraisonId={id}
+        currentStatus={livraison.status}
+        onAssignSuccess={handleAssignSuccess}
+        initialType={assignType}
       />
     </div>
   );

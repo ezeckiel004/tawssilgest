@@ -182,6 +182,42 @@ export const getLivraisonsByStatus = (status, page = 1) =>
 export const updateLivraisonStatus = (id, status) => 
   api.patch(`/manager/livraisons/${id}/status`, { status });
 
+/**
+ * ⭐ NOUVEAU : Récupérer les livreurs disponibles pour le gestionnaire
+ * @param {string} type - Optionnel : 'ramasseur' ou 'distributeur'
+ * @returns {Promise}
+ */
+export const getLivreursDisponiblesManager = async () => {
+  try {
+    // Plus de paramètre type - on récupère TOUS les livreurs
+    const response = await api.get('/manager/livraisons/disponibles/livreurs');
+    return response.data;
+  } catch (error) {
+    console.error('Erreur getLivreursDisponiblesManager:', error);
+    throw error;
+  }
+};
+
+/**
+ * ⭐ NOUVEAU : Attribuer un livreur à une livraison (manager)
+ * @param {string} livraisonId - ID de la livraison
+ * @param {string} livreurId - ID du livreur
+ * @param {number} type - 1=ramasseur, 2=distributeur
+ * @returns {Promise}
+ */
+export const assignLivreurManager = async (livraisonId, livreurId, type) => {
+  try {
+    const response = await api.patch(`/manager/livraisons/${livraisonId}/assign-livreur`, {
+      livreur_id: livreurId,
+      type: type
+    });
+    return response.data;
+  } catch (error) {
+    console.error('Erreur assignLivreurManager:', error);
+    throw error;
+  }
+};
+
 // ==================== LIVREURS ====================
 
 /**
@@ -317,7 +353,7 @@ export const getMesGains = async (params = {}) => {
     const response = await api.get('/manager/gains', { params });
     return response.data;
   } catch (error) {
-    console.error('❌ Erreur getMesGains:', error);
+    console.error('Erreur getMesGains:', error);
     throw error;
   }
 };
@@ -331,7 +367,7 @@ export const getGainsEnAttente = async () => {
     const response = await api.get('/manager/gains/en-attente');
     return response.data;
   } catch (error) {
-    console.error('❌ Erreur getGainsEnAttente:', error);
+    console.error('Erreur getGainsEnAttente:', error);
     throw error;
   }
 };
@@ -346,7 +382,7 @@ export const demanderPaiementGain = async (gainId) => {
     const response = await api.post(`/manager/gains/demander/${gainId}`);
     return response.data;
   } catch (error) {
-    console.error('❌ Erreur demanderPaiementGain:', error);
+    console.error('Erreur demanderPaiementGain:', error);
     throw error;
   }
 };
@@ -363,7 +399,7 @@ export const demanderPaiementMultiple = async (gainIds) => {
     });
     return response.data;
   } catch (error) {
-    console.error('❌ Erreur demanderPaiementMultiple:', error);
+    console.error('Erreur demanderPaiementMultiple:', error);
     throw error;
   }
 };
@@ -377,7 +413,7 @@ export const getStatistiquesGains = async () => {
     const response = await api.get('/manager/gains/statistiques');
     return response.data;
   } catch (error) {
-    console.error('❌ Erreur getStatistiquesGains:', error);
+    console.error('Erreur getStatistiquesGains:', error);
     throw error;
   }
 };
@@ -397,7 +433,7 @@ export const getMesGainsNavette = async (params = {}) => {
     const response = await api.get('/manager/gains-navette', { params });
     return response.data;
   } catch (error) {
-    console.error('❌ Erreur getMesGainsNavette:', error);
+    console.error('Erreur getMesGainsNavette:', error);
     throw error;
   }
 };
@@ -411,7 +447,7 @@ export const getGainsNavetteEnAttente = async () => {
     const response = await api.get('/manager/gains-navette/en-attente');
     return response.data;
   } catch (error) {
-    console.error('❌ Erreur getGainsNavetteEnAttente:', error);
+    console.error('Erreur getGainsNavetteEnAttente:', error);
     throw error;
   }
 };
@@ -426,7 +462,7 @@ export const demanderPaiementNavette = async (gainId) => {
     const response = await api.post(`/manager/gains-navette/demander/${gainId}`);
     return response.data;
   } catch (error) {
-    console.error('❌ Erreur demanderPaiementNavette:', error);
+    console.error('Erreur demanderPaiementNavette:', error);
     throw error;
   }
 };
@@ -443,7 +479,7 @@ export const demanderPaiementMultipleNavette = async (gainIds) => {
     });
     return response.data;
   } catch (error) {
-    console.error('❌ Erreur demanderPaiementMultipleNavette:', error);
+    console.error('Erreur demanderPaiementMultipleNavette:', error);
     throw error;
   }
 };
@@ -457,7 +493,7 @@ export const getStatistiquesGainsNavette = async () => {
     const response = await api.get('/manager/gains-navette/statistiques');
     return response.data;
   } catch (error) {
-    console.error('❌ Erreur getStatistiquesGainsNavette:', error);
+    console.error('Erreur getStatistiquesGainsNavette:', error);
     throw error;
   }
 };
@@ -473,7 +509,7 @@ export const getBilanComptable = async (params = {}) => {
     const response = await api.get('/manager/comptabilite', { params });
     return response.data;
   } catch (error) {
-    console.error('❌ Erreur getBilanComptable:', error);
+    console.error('Erreur getBilanComptable:', error);
     throw error;
   }
 };
@@ -489,7 +525,7 @@ export const getStatistiquesMensuelles = async (annee) => {
     });
     return response.data;
   } catch (error) {
-    console.error('❌ Erreur getStatistiquesMensuelles:', error);
+    console.error('Erreur getStatistiquesMensuelles:', error);
     throw error;
   }
 };
@@ -506,7 +542,6 @@ export const exportBilan = async (params = {}) => {
       responseType: 'blob' 
     });
     
-    // Déterminer le nom du fichier
     const contentDisposition = response.headers['content-disposition'];
     let filename = `bilan-${new Date().toISOString().split('T')[0]}.${format === 'excel' ? 'xlsx' : 'pdf'}`;
     
@@ -517,7 +552,6 @@ export const exportBilan = async (params = {}) => {
       }
     }
     
-    // Télécharger le fichier
     const blob = new Blob([response.data], { 
       type: response.headers['content-type'] 
     });
@@ -525,7 +559,7 @@ export const exportBilan = async (params = {}) => {
     
     return { success: true };
   } catch (error) {
-    console.error('❌ Erreur exportBilan:', error);
+    console.error('Erreur exportBilan:', error);
     throw error;
   }
 };
@@ -598,7 +632,7 @@ export const getGestionnairesDisponibles = async () => {
     const response = await api.get('/manager/cash-delivery/gestionnaires');
     return response.data;
   } catch (error) {
-    console.error('❌ Erreur getGestionnairesDisponibles:', error);
+    console.error('Erreur getGestionnairesDisponibles:', error);
     throw error;
   }
 };
@@ -613,7 +647,7 @@ export const envoyerDemandeCOD = async (data) => {
     const response = await api.post('/manager/cash-delivery/envoyer', data);
     return response.data;
   } catch (error) {
-    console.error('❌ Erreur envoyerDemandeCOD:', error);
+    console.error('Erreur envoyerDemandeCOD:', error);
     throw error;
   }
 };
@@ -628,7 +662,7 @@ export const accepterDemandeCOD = async (id) => {
     const response = await api.post(`/manager/cash-delivery/${id}/accepter`);
     return response.data;
   } catch (error) {
-    console.error('❌ Erreur accepterDemandeCOD:', error);
+    console.error('Erreur accepterDemandeCOD:', error);
     throw error;
   }
 };
@@ -643,7 +677,7 @@ export const refuserDemandeCOD = async (id) => {
     const response = await api.post(`/manager/cash-delivery/${id}/refuser`);
     return response.data;
   } catch (error) {
-    console.error('❌ Erreur refuserDemandeCOD:', error);
+    console.error('Erreur refuserDemandeCOD:', error);
     throw error;
   }
 };
@@ -658,7 +692,7 @@ export const annulerDemandeCOD = async (id) => {
     const response = await api.post(`/manager/cash-delivery/${id}/annuler`);
     return response.data;
   } catch (error) {
-    console.error('❌ Erreur annulerDemandeCOD:', error);
+    console.error('Erreur annulerDemandeCOD:', error);
     throw error;
   }
 };
@@ -672,7 +706,7 @@ export const getDemandesEnvoyeesCOD = async () => {
     const response = await api.get('/manager/cash-delivery/envoyees');
     return response.data;
   } catch (error) {
-    console.error('❌ Erreur getDemandesEnvoyeesCOD:', error);
+    console.error('Erreur getDemandesEnvoyeesCOD:', error);
     throw error;
   }
 };
@@ -686,7 +720,7 @@ export const getDemandesRecuesCOD = async () => {
     const response = await api.get('/manager/cash-delivery/recues');
     return response.data;
   } catch (error) {
-    console.error('❌ Erreur getDemandesRecuesCOD:', error);
+    console.error('Erreur getDemandesRecuesCOD:', error);
     throw error;
   }
 };
@@ -700,7 +734,7 @@ export const getStatistiquesCOD = async () => {
     const response = await api.get('/manager/cash-delivery/statistiques');
     return response.data;
   } catch (error) {
-    console.error('❌ Erreur getStatistiquesCOD:', error);
+    console.error('Erreur getStatistiquesCOD:', error);
     throw error;
   }
 };
