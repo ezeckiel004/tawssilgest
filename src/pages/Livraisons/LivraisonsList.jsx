@@ -2,9 +2,9 @@ import React, { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
 import {
   MagnifyingGlassIcon,
-  FunnelIcon,
   EyeIcon,
 } from "@heroicons/react/24/outline";
+import { FaBox } from "react-icons/fa";
 import {
   getLivraisons,
   searchLivraisons,
@@ -19,6 +19,11 @@ import {
 } from "../../utils/formatters";
 import { STATUSES } from "../../utils/constants";
 import toast from "react-hot-toast";
+
+// Fonction pour vérifier si c'est un dépôt client
+const isDepotClient = (livraison) => {
+  return livraison?.demande_livraison?.depose_au_depot === true;
+};
 
 const LivraisonsList = () => {
   const [livraisons, setLivraisons] = useState([]);
@@ -87,6 +92,10 @@ const LivraisonsList = () => {
           <h1 className="text-2xl font-semibold text-gray-900">Livraisons</h1>
           <p className="mt-2 text-sm text-gray-700">
             Liste des livraisons de votre wilaya
+            <span className="ml-2 inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-800">
+              <FaBox className="w-3 h-3 mr-1" />
+              Dépôt client = colis déposé directement
+            </span>
           </p>
         </div>
       </div>
@@ -98,7 +107,7 @@ const LivraisonsList = () => {
             <input
               type="text"
               className="block w-full rounded-md border-gray-300 pr-10 focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
-              placeholder="Rechercher par code PIN, client, téléphone..."
+              placeholder="Rechercher par code PIN, client, téléphone, 'dépôt client'..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               onKeyPress={(e) => e.key === "Enter" && handleSearch()}
@@ -137,7 +146,7 @@ const LivraisonsList = () => {
                 <thead className="bg-gray-50">
                   <tr>
                     <th className="py-3.5 pl-4 pr-3 text-left text-sm font-semibold text-gray-900 sm:pl-6">
-                      Code PIN
+                      Code PIN / Mode
                     </th>
                     <th className="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">
                       Client
@@ -161,6 +170,12 @@ const LivraisonsList = () => {
                     <tr key={livraison.id}>
                       <td className="whitespace-nowrap py-4 pl-4 pr-3 text-sm font-medium text-gray-900 sm:pl-6">
                         {livraison.code_pin}
+                        {isDepotClient(livraison) && (
+                          <span className="ml-2 inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                            <FaBox className="w-3 h-3 mr-1" />
+                            Dépôt client
+                          </span>
+                        )}
                       </td>
                       <td className="whitespace-nowrap px-3 py-4 text-sm text-gray-500">
                         {livraison.client?.prenom} {livraison.client?.nom}

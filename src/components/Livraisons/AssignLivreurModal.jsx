@@ -2,10 +2,10 @@
 
 import React, { useState, useEffect } from 'react';
 import { toast } from 'react-hot-toast';
-import { XMarkIcon, UserPlusIcon, PhoneIcon, MapPinIcon } from '@heroicons/react/24/outline';
+import { XMarkIcon, UserPlusIcon, PhoneIcon, MapPinIcon, ArchiveBoxIcon } from '@heroicons/react/24/outline';
 import { getLivreursDisponiblesManager, assignLivreurManager } from '../../services/manager';
 
-const AssignLivreurModal = ({ isOpen, onClose, livraisonId, currentStatus, onAssignSuccess, initialType }) => {
+const AssignLivreurModal = ({ isOpen, onClose, livraisonId, currentStatus, onAssignSuccess, initialType, isDepotClient = false }) => {
     const [loading, setLoading] = useState(false);
     const [livreurs, setLivreurs] = useState([]);
     const [selectedLivreur, setSelectedLivreur] = useState('');
@@ -13,18 +13,26 @@ const AssignLivreurModal = ({ isOpen, onClose, livraisonId, currentStatus, onAss
     const [loadingLivreurs, setLoadingLivreurs] = useState(false);
     const [stats, setStats] = useState({ natifs: 0, assignes: 0, total: 0 });
 
-    // Déterminer quel type de livreur peut être assigné selon le statut
+    // Déterminer quel type de livreur peut être assigné selon le statut et le mode dépôt client
     const getAvailableTypes = () => {
         const types = [];
         
-        // Ramasseur : peut être assigné si statut different de "ramasse" et "livre" et "annule"
-        if (!['ramasse', 'livre', 'annule'].includes(currentStatus)) {
-            types.push({ value: 'ramasseur', label: 'Ramasseur', code: 1, color: 'blue' });
-        }
-        
-        // Distributeur : peut être assigné si statut = "en_transit"
-        if (currentStatus === 'en_transit') {
-            types.push({ value: 'distributeur', label: 'Distributeur', code: 2, color: 'green' });
+        if (isDepotClient) {
+            // Mode dépôt client : uniquement distributeur
+            if (['en_attente', 'en_transit'].includes(currentStatus)) {
+                types.push({ value: 'distributeur', label: 'Distributeur', code: 2, color: 'blue' });
+            }
+        } else {
+            // Mode normal
+            // Ramasseur : peut être assigné si statut différent de "ramasse" et "livre" et "annule"
+            if (!['ramasse', 'livre', 'annule'].includes(currentStatus)) {
+                types.push({ value: 'ramasseur', label: 'Ramasseur', code: 1, color: 'blue' });
+            }
+            
+            // Distributeur : peut être assigné si statut = "en_transit"
+            if (currentStatus === 'en_transit') {
+                types.push({ value: 'distributeur', label: 'Distributeur', code: 2, color: 'green' });
+            }
         }
         
         return types;
@@ -135,6 +143,12 @@ const AssignLivreurModal = ({ isOpen, onClose, livraisonId, currentStatus, onAss
                                     </h3>
                                     <p className="text-sm text-gray-500">
                                         Livraison #{livraisonId}
+                                        {isDepotClient && (
+                                            <span className="ml-2 inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                                                <ArchiveBoxIcon className="w-3 h-3 mr-1" />
+                                                Dépôt client
+                                            </span>
+                                        )}
                                     </p>
                                 </div>
                             </div>
@@ -149,13 +163,22 @@ const AssignLivreurModal = ({ isOpen, onClose, livraisonId, currentStatus, onAss
 
                     {/* Body */}
                     <div className="px-6 py-4">
+                        {/* Message spécifique pour dépôt client */}
+                        {isDepotClient && (
+                            <div className="mb-4 p-3 bg-blue-50 rounded-lg text-sm text-blue-800 border border-blue-200">
+                                <ArchiveBoxIcon className="inline w-4 h-4 mr-2" />
+                                <span className="font-medium">Mode dépôt client :</span> Ce colis a été déposé directement par le client.
+                                Vous pouvez uniquement assigner un <strong>distributeur</strong> pour la livraison finale.
+                            </div>
+                        )}
+
                         {/* Etape 1 : Choix du type de livreur */}
                         {!assignType && (
                             <div>
                                 <label className="block text-sm font-medium text-gray-700 mb-3">
                                     Quel type de livreur souhaitez-vous attribuer ?
                                 </label>
-                                <div className="grid grid-cols-2 gap-3">
+                                <div className={`grid ${availableTypes.length === 1 ? 'grid-cols-1' : 'grid-cols-2'} gap-3`}>
                                     {availableTypes.map((type) => (
                                         <button
                                             key={type.value}
@@ -231,7 +254,18 @@ const AssignLivreurModal = ({ isOpen, onClose, livraisonId, currentStatus, onAss
                                     </div>
                                 ) : (
                                     <div className="space-y-2 max-h-96 overflow-y-auto">
-                                        {livreurs.map((livreur) => (
+                                        {livreurs
+                                            .filter(livreur => {
+                                                // Filtrer par type selon le type sélectionné
+                                                if (assignType === 'ramasseur') {
+                                                    return livreur.type === 'ramasseur' || livreur.type === 'polyvalent';
+                                                }
+                                                if (assignType === 'distributeur') {
+                                                    return livreur.type === 'distributeur' || livreur.type === 'polyvalent';
+                                                }
+                                                return true;
+                                            })
+                                            .map((livreur) => (
                                             <label
                                                 key={livreur.value}
                                                 className={`flex items-start p-3 border rounded-lg cursor-pointer transition-all

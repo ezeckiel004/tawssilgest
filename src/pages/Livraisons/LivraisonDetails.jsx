@@ -11,6 +11,7 @@ import {
   UserIcon,
   UserPlusIcon,
 } from "@heroicons/react/24/outline";
+import { FaBox, FaInfoCircle } from "react-icons/fa";
 import {
   getLivraisonById,
   updateLivraisonStatus,
@@ -26,6 +27,48 @@ import {
 } from "../../utils/formatters";
 import { STATUSES } from "../../utils/constants";
 import toast from "react-hot-toast";
+
+// Composant d'alerte pour dépôt client
+const DepotClientAlert = ({ livraison }) => {
+  const isDepotClient = livraison?.demande_livraison?.depose_au_depot === true;
+  const status = livraison?.status;
+  
+  if (!isDepotClient) return null;
+  
+  return (
+    <div className="mb-6 p-4 rounded-lg bg-blue-50 border border-blue-200">
+      <div className="flex items-start gap-3">
+        <div className="flex-shrink-0">
+          <div className="flex items-center justify-center w-10 h-10 bg-blue-100 rounded-full">
+            <FaBox className="w-5 h-5 text-blue-600" />
+          </div>
+        </div>
+        <div className="flex-1">
+          <h3 className="font-semibold text-blue-800">
+            Dépôt client - Pas de ramassage nécessaire
+          </h3>
+          <p className="mt-1 text-sm text-blue-700">
+            Ce colis a été déposé directement par le client au point de dépôt.
+            {status === 'en_attente' && (
+              <span className="block mt-1 font-medium">
+                Vous pouvez assigner directement un distributeur.
+              </span>
+            )}
+            {status === 'en_transit' && (
+              <span className="block mt-1 font-medium">
+                Le colis est en transit. Vous pouvez assigner un distributeur pour la livraison finale.
+              </span>
+            )}
+          </p>
+          <div className="mt-2 p-2 bg-blue-100 rounded text-xs text-blue-800">
+            <FaInfoCircle className="inline w-3 h-3 mr-1" />
+            Aucun ramasseur ne sera assigné pour cette livraison.
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
 
 const LivraisonDetails = () => {
   const { id } = useParams();
@@ -61,7 +104,8 @@ const LivraisonDetails = () => {
       setIsStatusModalOpen(false);
       toast.success("Statut mis à jour avec succès");
     } catch (err) {
-      toast.error("Erreur lors de la mise à jour");
+      const errorMsg = err.response?.data?.message || "Erreur lors de la mise à jour";
+      toast.error(errorMsg);
     }
   };
 
@@ -74,11 +118,17 @@ const LivraisonDetails = () => {
     setIsAssignModalOpen(true);
   };
 
-  // Verifier si le gestionnaire peut assigner un livreur selon le statut
+  // Verifier si le gestionnaire peut assigner un livreur selon le statut et le mode depot client
   const canAssignLivreur = (status, type) => {
+    const isDepotClient = livraison?.demande_livraison?.depose_au_depot === true;
+    
     if (type === "distributeur") {
+      if (isDepotClient) {
+        return ['en_attente', 'en_transit'].includes(status);
+      }
       return status === "en_transit";
     } else if (type === "ramasseur") {
+      if (isDepotClient) return false;
       return !["ramasse", "livre", "annule"].includes(status);
     }
     return false;
@@ -86,6 +136,10 @@ const LivraisonDetails = () => {
 
   // Verifier si au moins un type est disponible
   const hasAssignableType = (status) => {
+    const isDepotClient = livraison?.demande_livraison?.depose_au_depot === true;
+    if (isDepotClient) {
+      return canAssignLivreur(status, "distributeur");
+    }
     return canAssignLivreur(status, "ramasseur") || canAssignLivreur(status, "distributeur");
   };
 
@@ -99,6 +153,7 @@ const LivraisonDetails = () => {
   const destinataire = livraison.destinataire;
   const livreurRamasseur = livraison.livreur_ramasseur;
   const livreurDistributeur = livraison.livreur_distributeur;
+  const isDepotClient = demande?.depose_au_depot === true;
 
   return (
     <div>
@@ -110,6 +165,9 @@ const LivraisonDetails = () => {
         Retour aux livraisons
       </button>
 
+      {/* Alerte depot client */}
+      <DepotClientAlert livraison={livraison} />
+
       <div className="bg-white shadow overflow-hidden sm:rounded-lg">
         {/* En-tete */}
         <div className="px-4 py-5 sm:px-6 flex justify-between items-center">
@@ -120,6 +178,12 @@ const LivraisonDetails = () => {
             <p className="mt-1 max-w-2xl text-sm text-gray-500">
               Créee le {formatDate(livraison.created_at)}
             </p>
+            {isDepotClient && (
+              <span className="mt-2 inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                <FaBox className="w-3 h-3 mr-1" />
+                Dépôt client
+              </span>
+            )}
           </div>
           <div className="flex items-center space-x-4">
             <span className={getStatusBadgeClass(livraison.status)}>
@@ -135,7 +199,7 @@ const LivraisonDetails = () => {
               Changer statut
             </button>
 
-            {/* NOUVEAU BOUTON : Attribuer un livreur */}
+            {/* Bouton Attribuer un livreur */}
             {hasAssignableType(livraison.status) && (
               <button
                 onClick={() => openAssignModal(null)}
@@ -148,45 +212,52 @@ const LivraisonDetails = () => {
           </div>
         </div>
 
-        {/* Section Attribution livreurs - Version Manager */}
+        {/* Section Attribution livreurs - Version Manager avec adaptation depot client */}
         {hasAssignableType(livraison.status) && (
           <div className="border-t border-gray-200 px-4 py-5 sm:px-6 bg-gray-50">
             <h3 className="text-md font-medium text-gray-900 mb-4 flex items-center gap-2">
               <UserPlusIcon className="h-5 w-5 text-indigo-600" />
               Attribution des livreurs
+              {isDepotClient && (
+                <span className="ml-2 text-xs text-blue-600 font-normal">
+                  (Mode dépôt client)
+                </span>
+              )}
             </h3>
 
             <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-              {/* Livreur ramasseur */}
-              <div className="p-4 rounded-lg bg-blue-50">
-                <div className="flex items-center justify-between mb-3">
-                  <div>
-                    <p className="font-medium text-gray-900">Livreur Ramasseur</p>
-                    <p className="text-sm text-gray-600">
-                      {livreurRamasseur
-                        ? `${livreurRamasseur.prenom || ''} ${livreurRamasseur.nom || ''}`.trim()
-                        : "Non attribué"}
-                    </p>
-                    {livreurRamasseur?.telephone && (
-                      <p className="text-xs text-gray-500 mt-1 flex items-center">
-                        <PhoneIcon className="w-3 h-3 mr-1" />
-                        {livreurRamasseur.telephone}
+              {/* Livreur ramasseur - caché si depot client */}
+              {!isDepotClient && (
+                <div className="p-4 rounded-lg bg-blue-50">
+                  <div className="flex items-center justify-between mb-3">
+                    <div>
+                      <p className="font-medium text-gray-900">Livreur Ramasseur</p>
+                      <p className="text-sm text-gray-600">
+                        {livreurRamasseur
+                          ? `${livreurRamasseur.prenom || ''} ${livreurRamasseur.nom || ''}`.trim()
+                          : "Non attribué"}
                       </p>
+                      {livreurRamasseur?.telephone && (
+                        <p className="text-xs text-gray-500 mt-1 flex items-center">
+                          <PhoneIcon className="w-3 h-3 mr-1" />
+                          {livreurRamasseur.telephone}
+                        </p>
+                      )}
+                    </div>
+                    {canAssignLivreur(livraison.status, "ramasseur") && (
+                      <button
+                        onClick={() => openAssignModal("ramasseur")}
+                        className="px-3 py-1 text-sm text-blue-600 bg-blue-100 rounded hover:bg-blue-200"
+                      >
+                        {livreurRamasseur ? "Changer" : "Attribuer"}
+                      </button>
                     )}
                   </div>
-                  {canAssignLivreur(livraison.status, "ramasseur") && (
-                    <button
-                      onClick={() => openAssignModal("ramasseur")}
-                      className="px-3 py-1 text-sm text-blue-600 bg-blue-100 rounded hover:bg-blue-200"
-                    >
-                      {livreurRamasseur ? "Changer" : "Attribuer"}
-                    </button>
-                  )}
                 </div>
-              </div>
+              )}
 
               {/* Livreur distributeur */}
-              <div className="p-4 rounded-lg bg-green-50">
+              <div className={`p-4 rounded-lg ${isDepotClient ? 'bg-blue-50' : 'bg-green-50'}`}>
                 <div className="flex items-center justify-between mb-3">
                   <div>
                     <p className="font-medium text-gray-900">Livreur Distributeur</p>
@@ -205,7 +276,11 @@ const LivraisonDetails = () => {
                   {canAssignLivreur(livraison.status, "distributeur") && (
                     <button
                       onClick={() => openAssignModal("distributeur")}
-                      className="px-3 py-1 text-sm text-green-600 bg-green-100 rounded hover:bg-green-200"
+                      className={`px-3 py-1 text-sm rounded ${
+                        isDepotClient 
+                          ? 'text-blue-600 bg-blue-100 hover:bg-blue-200'
+                          : 'text-green-600 bg-green-100 hover:bg-green-200'
+                      }`}
                     >
                       {livreurDistributeur ? "Changer" : "Attribuer"}
                     </button>
@@ -213,6 +288,17 @@ const LivraisonDetails = () => {
                 </div>
               </div>
             </div>
+
+            {/* Message specifique pour depot client */}
+            {isDepotClient && (
+              <div className="p-3 mt-4 text-sm bg-blue-100 rounded-lg">
+                <p className="text-blue-800 flex items-center gap-2">
+                  <FaBox className="w-4 h-4" />
+                  Mode dépôt client : Le colis a été déposé directement. 
+                  Vous pouvez assigner un distributeur sans avoir besoin d'un ramasseur.
+                </p>
+              </div>
+            )}
 
             {/* Info sur les livreurs disponibles */}
             <div className="p-3 mt-4 text-sm bg-gray-100 rounded-lg">
@@ -279,10 +365,12 @@ const LivraisonDetails = () => {
                 Adresse de depot
               </dt>
               <dd className="mt-1 text-sm text-gray-900">
-                <p>{demande?.addresse_depot}</p>
-                <p className="text-xs text-gray-500 mt-1">
-                  {demande?.wilaya_depot}, {demande?.commune_depot}
-                </p>
+                <p>{demande?.addresse_depot || (isDepotClient ? "Dépôt client - Adresse non requise" : "Non spécifiée")}</p>
+                {demande?.wilaya_depot && (
+                  <p className="text-xs text-gray-500 mt-1">
+                    {demande?.wilaya_depot}, {demande?.commune_depot}
+                  </p>
+                )}
                 {demande?.lat_depot && demande?.lng_depot && (
                   <p className="text-xs text-gray-400 mt-1">
                     Coordonnées: {demande.lat_depot}, {demande.lng_depot}
@@ -368,7 +456,7 @@ const LivraisonDetails = () => {
               <dd className="mt-1 text-sm text-gray-900">
                 {livraison.date_ramassage
                   ? formatDate(livraison.date_ramassage)
-                  : "Non effectué"}
+                  : (isDepotClient ? "Dépôt client - Pas de ramassage" : "Non effectué")}
               </dd>
             </div>
 
@@ -434,6 +522,7 @@ const LivraisonDetails = () => {
         onClose={() => setIsStatusModalOpen(false)}
         currentStatus={livraison.status}
         onUpdate={handleStatusUpdate}
+        isDepotClient={isDepotClient}
       />
 
       {/* Modal d'assignation des livreurs */}
@@ -447,6 +536,7 @@ const LivraisonDetails = () => {
         currentStatus={livraison.status}
         onAssignSuccess={handleAssignSuccess}
         initialType={assignType}
+        isDepotClient={isDepotClient}
       />
     </div>
   );
